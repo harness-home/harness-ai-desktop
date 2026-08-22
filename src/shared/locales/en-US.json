@@ -1,6 +1,8 @@
 {
   "shell.placeholder.title": "Harness AI",
   "shell.placeholder.status": "Starting the local agent runtime…",
-  "shell.boot.failed.title": "Harness AI",
-  "shell.boot.failed.detail": "The local agent runtime failed to start."
+  "shell.failed.hint": "The local agent runtime did not start. You can retry, or inspect the logs.",
+  "shell.failed.retry": "Retry",
+  "shell.failed.openLogs": "Open logs",
+  "shell.failed.quit": "Quit"
 }

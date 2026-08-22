@@ -17,9 +17,43 @@
       }
       main {
         text-align: center;
+        max-width: 640px;
+        padding: 0 24px;
       }
       p {
         opacity: 0.7;
+      }
+      pre {
+        text-align: left;
+        max-height: 200px;
+        overflow: auto;
+        padding: 12px;
+        border-radius: 8px;
+        background: rgba(128, 128, 128, 0.15);
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .actions {
+        display: none;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 20px;
+      }
+      button {
+        padding: 8px 20px;
+        border-radius: 6px;
+        border: 1px solid rgba(128, 128, 128, 0.4);
+        background: transparent;
+        color: inherit;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(128, 128, 128, 0.15);
+      }
+      [hidden] {
+        display: none !important;
       }
     </style>
   </head>
@@ -27,6 +61,12 @@
     <main>
       <h1 id="title"></h1>
       <p id="status"></p>
+      <pre id="detail" hidden></pre>
+      <div id="actions" class="actions">
+        <button id="retry"></button>
+        <button id="open-logs"></button>
+        <button id="quit"></button>
+      </div>
     </main>
     <script type="module" src="./index.ts"></script>
   </body>

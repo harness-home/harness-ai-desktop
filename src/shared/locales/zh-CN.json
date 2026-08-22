@@ -1,6 +1,8 @@
 {
   "shell.placeholder.title": "Harness AI",
   "shell.placeholder.status": "正在启动本地 Agent 运行时……",
-  "shell.boot.failed.title": "Harness AI",
-  "shell.boot.failed.detail": "本地 Agent 运行时启动失败。"
+  "shell.failed.hint": "本地 Agent 运行时未能启动，可重试或查看日志。",
+  "shell.failed.retry": "重试",
+  "shell.failed.openLogs": "打开日志",
+  "shell.failed.quit": "退出"
 }

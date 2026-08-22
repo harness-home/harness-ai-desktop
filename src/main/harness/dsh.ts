@@ -4,11 +4,13 @@
 // loopback only (workspace red line #4).
 
 import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   boot,
+  composeEntries,
   healProfilesModuleFallback,
   initProfile,
   loadLayeredEnv,
@@ -42,15 +44,41 @@ const PROFILE_ROOT_CONFIG = `# dsh profile root - an empty entry list managed by
 []
 `
 
-// App-owned overlay layer applied above every user layer: rows for the
-// desktop's own plugins (resolved from this app's node_modules).
-const APP_PATCHES = [
+// App-owned overlay rows for the desktop's own plugins (resolved from this
+// app's node_modules).
+const APP_ROWS = [
   {
     insert: [
       { id: 'harness-ai-brand', name: '@harness-ai/desktop-brand' },
     ],
   },
 ]
+
+/**
+ * Mirror the upstream launcher's shipped agent-preset injection: the roster
+ * directory ships inside the `@deepseek-ai/dsh` package, and only the app can
+ * resolve it. Preserves the composed row's other config values.
+ */
+function agentPresetOverlay(
+  installAnchor: string,
+  layers: Parameters<typeof composeEntries>[0],
+): object[] {
+  const rows = new Map(
+    composeEntries(layers)
+      .filter(row => typeof row.id === 'string')
+      .map(row => [row.id as string, row]),
+  )
+  const row = rows.get('agent-presets')
+  if (row === undefined) return []
+  const cliDir = dirname(createRequire(installAnchor).resolve('@deepseek-ai/dsh/package.json'))
+  return [{
+    id: 'agent-presets',
+    config: {
+      ...(row.config ?? {}) as Record<string, unknown>,
+      roots: [{ path: join(cliDir, 'config', 'agent-presets') + sep, trust: 'system' }],
+    },
+  }]
+}
 
 export interface DshAdapterOptions {
   /** Application root whose package.json anchors bundle resolution (its node_modules holds the runtime). */
@@ -76,14 +104,16 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
       const rootConfig = join(profile.dir, PROFILE_ROOT_FILENAME)
       writeFileSync(rootConfig, PROFILE_ROOT_CONFIG)
       const homePatches = loadOptionalPatches(BIN_NAME, join(home, PROFILE_PATCH_FILENAME)) ?? []
+      const bundlePatches = profile.layers.flatMap(layer => layer.patches)
       // Bundle layers in manifest order, then the profile's user layer, then
       // the home-level user layer — the upstream launcher's application order —
-      // then the app-owned overlay adding our own plugin rows.
+      // then the app-owned overlays (our plugin rows + shipped agent presets).
       const patches = structuredClone([
-        ...profile.layers.flatMap(layer => layer.patches),
+        ...bundlePatches,
         ...profile.patches,
         ...homePatches,
-        ...APP_PATCHES,
+        ...APP_ROWS,
+        ...agentPresetOverlay(installAnchor, [bundlePatches, profile.patches, homePatches]),
       ])
       const port = await findFreePort()
       ctx = await boot(

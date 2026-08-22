@@ -25,6 +25,7 @@
     "@deepseek-ai/cordis-plugin-include": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-loader": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-timer": "catalog:cordis",
+    "@deepseek-ai/dsh": "catalog:dsh",
     "@deepseek-ai/dsh-app-boot": "catalog:dsh",
     "@deepseek-ai/dsh-base": "catalog:dsh",
     "@deepseek-ai/dsh-cmdline": "catalog:dsh",

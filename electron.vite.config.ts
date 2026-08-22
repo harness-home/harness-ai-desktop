@@ -1,9 +1,13 @@
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
+// @harness-ai/contracts is a link: dependency exporting TypeScript source, so
+// it must be bundled into the artifact (never externalized).
+const bundled = ['@harness-ai/contracts']
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: bundled })],
     build: {
       rollupOptions: {
         input: { index: resolve(import.meta.dirname, 'src/main/index.ts') },

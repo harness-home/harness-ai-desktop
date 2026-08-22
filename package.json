@@ -19,6 +19,8 @@
     "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml"
   },
   "dependencies": {
+    "@harness-ai/contracts": "link:../harness-ai-packages/contracts",
+    "@harness-ai/desktop-account-ui": "workspace:*",
     "@harness-ai/desktop-brand": "workspace:*",
     "@harness-ai/desktop-windows-pwsh-sandbox": "workspace:*",
     "@deepseek-ai/cordis": "catalog:cordis",

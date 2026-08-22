@@ -23,6 +23,8 @@ import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type { DesktopAccountService } from '../account/service'
+import { registerAccountRoutes } from './account-routes'
 import type { HarnessAdapter, HarnessHandle } from './adapter'
 import { findFreePort } from './port'
 
@@ -50,6 +52,7 @@ const APP_ROWS = [
   {
     insert: [
       { id: 'harness-ai-brand', name: '@harness-ai/desktop-brand' },
+      { id: 'harness-ai-account-ui', name: '@harness-ai/desktop-account-ui' },
     ],
   },
 ]
@@ -105,6 +108,8 @@ export interface DshAdapterOptions {
   appRoot: string
   /** Called when a plugin requests bounded process exit through the cmdline service. */
   onExitRequest: (code: number) => void
+  /** When present, the account bridge routes are mounted on the web server. */
+  accountService?: DesktopAccountService
 }
 
 export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
@@ -142,6 +147,9 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
         patches,
         (hostCtx) => {
           hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
+          if (options.accountService !== undefined) {
+            registerAccountRoutes(hostCtx, options.accountService)
+          }
           provideCmdline(hostCtx, {
             // The shell embeds the UI itself: never open the system browser.
             args: ['--no-open', '--host', '127.0.0.1', '--port', String(port)],

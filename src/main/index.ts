@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import type { RecoveryAction } from '../shared/shell-api'
+import { DesktopAccountService } from './account/service'
 import type { HarnessAdapter } from './harness/adapter'
 import { createDshAdapter } from './harness/dsh'
 import { installNodeSpawnShim } from './harness/node-spawn-shim'
@@ -87,6 +88,13 @@ async function startHarness(win: BrowserWindow): Promise<void> {
     onExitRequest: (code) => {
       app.exit(code)
     },
+    // Deployment endpoint is still open (ledger #25); default to the local
+    // dev server until one exists.
+    accountService: new DesktopAccountService({
+      serverUrl: process.env.HARNESS_SERVER_URL ?? 'http://localhost:8720',
+      storageFile: join(app.getPath('userData'), 'account.json'),
+      appVersion: app.getVersion(),
+    }),
   })
   let timedOut = false
   const timeout = setTimeout(() => {

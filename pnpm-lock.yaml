@@ -90,6 +90,12 @@ importers:
       '@deepseek-ai/dsh-web-app':
         specifier: catalog:dsh
         version: 0.1.1-rc.2(b06297834d310074e7398894944fd681)
+      '@harness-ai/contracts':
+        specifier: link:../harness-ai-packages/contracts
+        version: link:../harness-ai-packages/contracts
+      '@harness-ai/desktop-account-ui':
+        specifier: workspace:*
+        version: link:plugins/account-ui
       '@harness-ai/desktop-brand':
         specifier: workspace:*
         version: link:plugins/brand
@@ -118,6 +124,12 @@ importers:
       vite:
         specifier: ^7.0.0
         version: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)(yaml@2.9.0)
+
+  plugins/account-ui:
+    devDependencies:
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
 
   plugins/brand:
     devDependencies:

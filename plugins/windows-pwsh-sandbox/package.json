@@ -1,0 +1,18 @@
+{
+  "name": "@harness-ai/desktop-windows-pwsh-sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron adapter for the upstream Windows ACL PowerShell executor (run-as-node trampoline)",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

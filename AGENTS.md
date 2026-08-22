@@ -19,13 +19,15 @@ Electron 壳：主进程**同进程 `boot()`** 托管 dsh 运行时 + `loadURL` 
 ## 常用命令
 
 ```
-pnpm install     # postinstall 会拉取 electron 二进制（ELECTRON_MIRROR 可覆盖镜像）
-pnpm dev         # electron-vite dev，启动壳窗口
-pnpm build       # electron-vite build（main/preload/renderer）
-pnpm typecheck   # tsc --noEmit
+pnpm install          # postinstall 会拉取 electron 二进制（ELECTRON_MIRROR 可覆盖镜像）
+pnpm dev              # 先构建 plugins/*，再 electron-vite dev 启动壳窗口
+pnpm build            # 插件 + main/preload/renderer 构建
+pnpm typecheck        # tsc --noEmit（含 plugins/*/src）
+node scripts/smoke.mjs  # 自动化启动冒烟（端点/页面/品牌插件断言）
+pnpm run dist:win     # License 闸门 + electron-builder Win x64 NSIS + afterPack 硬校验
 ```
 
-最低验证：改动后 `pnpm typecheck` 与 `pnpm build` 必须通过；涉及窗口/启动行为的改动补 `pnpm dev` 冒烟。
+最低验证：改动后 `pnpm typecheck` 与 `pnpm build` 必须通过；涉及窗口/启动/运行时行为的改动跑 `node scripts/smoke.mjs`。完整验收见 [docs/acceptance.md](docs/acceptance.md)。
 
 ## dsh 版本管理（根 AGENTS 红线 #2 的落地）
 

@@ -1,0 +1,39 @@
+/*
+ * Tailwind utilities for the account UI, injected as one style tag into the
+ * dsh page. No preflight: the host page owns global resets. shadcn tokens are
+ * scoped under .harness-account-scope and map onto dsh theme variables, so
+ * light/dark (and the Harness themes) flow through automatically.
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+@source "./";
+
+.harness-account-scope {
+  --background: var(--dsw-alias-bg-overlay, #ffffff);
+  --foreground: var(--dsw-alias-label-primary, #18181b);
+  --muted-foreground: var(--dsw-alias-label-secondary, #71717a);
+  --border: var(--dsw-alias-border-l1, #d4d4d8);
+  --input: var(--dsw-alias-border-l1, #d4d4d8);
+  --primary: var(--dsw-alias-brand-primary, #0f766e);
+  --primary-foreground: #ffffff;
+  --destructive: var(--dsw-alias-state-error-primary, #dc2626);
+  --ring: var(--dsw-alias-brand-primary, #0f766e);
+  --radius: 0.5rem;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}

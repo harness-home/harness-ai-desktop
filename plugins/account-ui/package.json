@@ -2,7 +2,7 @@
   "name": "@harness-ai/desktop-account-ui",
   "version": "0.1.0",
   "private": true,
-  "description": "Harness AI account settings section: login/logout against harness-ai-server via the shell's loopback bridge",
+  "description": "Harness AI account entry: sidebar action above Settings opening a shadcn/ui login dialog against the shell's loopback bridge",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -15,15 +15,24 @@
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-sidebar"
       ],
       "platform": "web"
     }
   },
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "tailwindcss -i src/client/styles.css -o lib/client.css --minify && node scripts/build.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "@radix-ui/react-dialog": "^1.1.0",
+    "@radix-ui/react-label": "^2.1.0",
+    "@radix-ui/react-slot": "^1.2.0",
+    "@tailwindcss/cli": "^4.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "esbuild": "^0.25.0",
+    "lucide-react": "^1.33.0",
+    "tailwind-merge": "^3.0.0",
+    "tailwindcss": "^4.0.0"
   }
 }

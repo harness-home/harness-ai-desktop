@@ -20,7 +20,7 @@ export const en = {
 export type AccountKey = keyof typeof en
 
 export const zh: Record<AccountKey, string> = {
-  nav: '账号',
+  nav: '账户',
   loggedOut: '未登录。登录用于后续的云同步；不登录不影响任何本地功能。',
   loggedInPrefix: '已登录：',
   offlineSuffix: '（服务器暂不可达——本地功能不受影响）',

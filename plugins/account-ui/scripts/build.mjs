@@ -1,7 +1,9 @@
-// Build both halves in dsh's lazy-CJS client format (same pipeline as the
-// brand plugin): externals stay require() calls answered by the shell's
-// module table.
+// Build both halves in dsh's lazy-CJS client format. The Tailwind CSS
+// (compiled to lib/client.css by the build script's first step) is injected
+// as one deduplicated style tag at factory execution — the same shape as
+// dsh's own client-bundle CSS injection.
 import { build } from 'esbuild'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,6 +21,19 @@ await build({
   target: 'es2023',
 })
 
+const css = readFileSync(join(root, 'lib/client.css'), 'utf8')
+const styleInject = [
+  '(function(){',
+  `var id=${JSON.stringify(`${pkg.name}/client.css`)};`,
+  'if(typeof document!=="undefined"&&document.querySelector(\'style[data-plugin-css="\'+id+\'"]\')===null){',
+  'var tag=document.createElement("style");',
+  `tag.dataset.plugin=${JSON.stringify(pkg.name)};`,
+  'tag.dataset.pluginCss=id;',
+  `tag.textContent=${JSON.stringify(css)};`,
+  'document.head.appendChild(tag);}',
+  '})();',
+].join('')
+
 await build({
   entryPoints: [join(root, 'src/client/index.ts')],
   outfile: join(root, 'lib/client.js'),
@@ -30,8 +45,8 @@ await build({
   // TSX with the automatic runtime: react/jsx-runtime is a module-table row.
   jsx: 'automatic',
   external: ['react', 'react/jsx-runtime', '@deepseek-ai/cordis', '@deepseek-ai/dsh-client-ui-slots'],
-  banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(pkg.name)}, factory: (require) => {\nvar module = { exports: {} }; var exports = module.exports;` },
+  banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(pkg.name)}, factory: (require) => {\n${styleInject}\nvar module = { exports: {} }; var exports = module.exports;` },
   footer: { js: 'return module.exports; } });' },
 })
 
-console.log(`${pkg.name}: built lib/index.js and lib/client.js`)
+console.log(`${pkg.name}: built lib/index.js, lib/client.js and injected css`)

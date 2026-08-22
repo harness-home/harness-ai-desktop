@@ -10,6 +10,7 @@
     "noUnusedParameters": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node", "electron-vite/node"],

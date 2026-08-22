@@ -27,6 +27,8 @@ await build({
   platform: 'browser',
   target: 'es2023',
   sourcemap: true,
+  // TSX with the automatic runtime: react/jsx-runtime is a module-table row.
+  jsx: 'automatic',
   external: ['react', 'react/jsx-runtime', '@deepseek-ai/cordis', '@deepseek-ai/dsh-client-ui-slots'],
   banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(pkg.name)}, factory: (require) => {\nvar module = { exports: {} }; var exports = module.exports;` },
   footer: { js: 'return module.exports; } });' },

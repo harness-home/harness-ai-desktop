@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@harness-ai/desktop-brand": "workspace:*",
+    "@harness-ai/desktop-windows-pwsh-sandbox": "workspace:*",
     "@deepseek-ai/cordis": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-group": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-include": "catalog:cordis",

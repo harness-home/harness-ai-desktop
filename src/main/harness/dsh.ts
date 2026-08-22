@@ -55,11 +55,15 @@ const APP_ROWS = [
 ]
 
 /**
- * Mirror the upstream launcher's shipped agent-preset injection: the roster
- * directory ships inside the `@deepseek-ai/dsh` package, and only the app can
- * resolve it. Preserves the composed row's other config values.
+ * App-owned overlays derived from the composed tree:
+ * 1. Shipped agent presets — the roster ships inside the `@deepseek-ai/dsh`
+ *    package and only the app can resolve it (mirrors the upstream launcher).
+ * 2. Windows pwsh sandbox swap — the upstream ACL sandbox launches its runner
+ *    as `process.execPath <runner.js>`, which inside Electron starts a second
+ *    app instance; our adapter row trampolines that launch (see
+ *    plugins/windows-pwsh-sandbox).
  */
-function agentPresetOverlay(
+function composedOverlays(
   installAnchor: string,
   layers: Parameters<typeof composeEntries>[0],
 ): object[] {
@@ -68,16 +72,32 @@ function agentPresetOverlay(
       .filter(row => typeof row.id === 'string')
       .map(row => [row.id as string, row]),
   )
-  const row = rows.get('agent-presets')
-  if (row === undefined) return []
-  const cliDir = dirname(createRequire(installAnchor).resolve('@deepseek-ai/dsh/package.json'))
-  return [{
-    id: 'agent-presets',
-    config: {
-      ...(row.config ?? {}) as Record<string, unknown>,
-      roots: [{ path: join(cliDir, 'config', 'agent-presets') + sep, trust: 'system' }],
-    },
-  }]
+  const overlays: object[] = []
+  const presets = rows.get('agent-presets')
+  if (presets !== undefined) {
+    const cliDir = dirname(createRequire(installAnchor).resolve('@deepseek-ai/dsh/package.json'))
+    overlays.push({
+      id: 'agent-presets',
+      config: {
+        ...(presets.config ?? {}) as Record<string, unknown>,
+        roots: [{ path: join(cliDir, 'config', 'agent-presets') + sep, trust: 'system' }],
+      },
+    })
+  }
+  const pwshSandbox = rows.get('pwsh-sandbox')
+  if (process.platform === 'win32' && pwshSandbox?.name === '@deepseek-ai/dsh-pwsh-sandbox') {
+    overlays.push(
+      { id: 'pwsh-sandbox', name: '@deepseek-ai/dsh-pwsh-sandbox', disabled: true },
+      {
+        insert: [{
+          id: 'desktop-windows-pwsh-sandbox',
+          name: '@harness-ai/desktop-windows-pwsh-sandbox',
+          ...(pwshSandbox.config === undefined ? {} : { config: pwshSandbox.config }),
+        }],
+      },
+    )
+  }
+  return overlays
 }
 
 export interface DshAdapterOptions {
@@ -113,7 +133,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
         ...profile.patches,
         ...homePatches,
         ...APP_ROWS,
-        ...agentPresetOverlay(installAnchor, [bundlePatches, profile.patches, homePatches]),
+        ...composedOverlays(installAnchor, [bundlePatches, profile.patches, homePatches]),
       ])
       const port = await findFreePort()
       ctx = await boot(

@@ -93,6 +93,9 @@ importers:
       '@harness-ai/desktop-brand':
         specifier: workspace:*
         version: link:plugins/brand
+      '@harness-ai/desktop-windows-pwsh-sandbox':
+        specifier: workspace:*
+        version: link:plugins/windows-pwsh-sandbox
     devDependencies:
       '@types/node':
         specifier: ^22.20.0
@@ -117,6 +120,12 @@ importers:
         version: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)(yaml@2.9.0)
 
   plugins/brand:
+    devDependencies:
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+
+  plugins/windows-pwsh-sandbox:
     devDependencies:
       esbuild:
         specifier: ^0.25.0

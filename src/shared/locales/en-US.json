@@ -1,4 +1,6 @@
 {
   "shell.placeholder.title": "Harness AI",
-  "shell.placeholder.status": "Shell scaffold is running. The dsh runtime is not wired up yet."
+  "shell.placeholder.status": "Starting the local agent runtime…",
+  "shell.boot.failed.title": "Harness AI",
+  "shell.boot.failed.detail": "The local agent runtime failed to start."
 }

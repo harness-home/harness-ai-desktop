@@ -1,4 +1,6 @@
 {
   "shell.placeholder.title": "Harness AI",
-  "shell.placeholder.status": "壳工程骨架已运行，dsh 运行时尚未接入。"
+  "shell.placeholder.status": "正在启动本地 Agent 运行时……",
+  "shell.boot.failed.title": "Harness AI",
+  "shell.boot.failed.detail": "本地 Agent 运行时启动失败。"
 }

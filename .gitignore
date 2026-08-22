@@ -4,3 +4,4 @@ dist/
 *.log
 *.tsbuildinfo
 .DS_Store
+THIRD_PARTY_NOTICES.md

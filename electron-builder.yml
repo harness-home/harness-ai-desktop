@@ -1,0 +1,32 @@
+# Packaging (Win x64 first). asar is off: the dsh runtime resolves its plugin
+# closure through real node_modules paths (ESM imports, the profile symlink
+# farm, native modules), which an asar archive cannot provide. Revisit asar
+# precision together with auto-update (workspace ledger #14).
+appId: ai.harness.desktop
+productName: Harness AI
+asar: false
+# Native deps (node-pty, koffi) ship N-API prebuilds that already load inside
+# Electron (proven by the dev shell); a node-gyp rebuild would only demand a
+# local Visual Studio for nothing.
+npmRebuild: false
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - THIRD_PARTY_NOTICES.md
+afterPack: ./scripts/verify-packaged.cjs
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: HarnessAI-${version}-${arch}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Harness AI

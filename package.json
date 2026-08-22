@@ -15,7 +15,8 @@
     "build:plugins": "pnpm --filter \"@harness-ai/*\" build",
     "dev": "pnpm run build:plugins && electron-vite dev",
     "build": "pnpm run build:plugins && electron-vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml"
   },
   "dependencies": {
     "@harness-ai/desktop-brand": "workspace:*",
@@ -36,6 +37,7 @@
     "@types/node": "^22.20.0",
     "@types/react": "^18",
     "electron": "43.4.0",
+    "electron-builder": "^26.0.0",
     "electron-vite": "^4.0.0",
     "typescript": "6.0.3",
     "vite": "^7.0.0"

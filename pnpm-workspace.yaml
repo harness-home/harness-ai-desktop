@@ -33,6 +33,7 @@ catalogs:
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': false
+  electron-winstaller: false
   esbuild: true
   koffi: true
   node-pty: true

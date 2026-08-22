@@ -1,0 +1,43 @@
+/** Copy dictionaries for the plugin market (fixed fallback en-US). */
+export const en = {
+  nav: 'Plugin Market',
+  title: 'Plugin Market',
+  subtitle: 'Browse plugins. Installation is not available in this version.',
+  searchPlaceholder: 'Search plugins…',
+  categoryAll: 'All',
+  preset: 'Preset',
+  close: 'Close',
+  empty: 'No plugins match your filter.',
+  loading: 'Loading…',
+  unauthenticated: 'Sign in from the sidebar Account entry to browse the market.',
+  bridgeUnavailable: 'Market bridge is unavailable in this composition.',
+  homepage: 'Homepage',
+  'category.agent': 'Agent',
+  'category.tool': 'Tool',
+  'category.ui': 'UI',
+  'category.model': 'Model',
+  'category.integration': 'Integration',
+  'category.other': 'Other',
+}
+export type MarketKey = keyof typeof en
+
+export const zh: Record<MarketKey, string> = {
+  nav: '插件市场',
+  title: '插件市场',
+  subtitle: '浏览插件。当前版本暂不支持安装。',
+  searchPlaceholder: '搜索插件……',
+  categoryAll: '全部',
+  preset: '预置',
+  close: '关闭',
+  empty: '没有符合筛选条件的插件。',
+  loading: '加载中……',
+  unauthenticated: '请先在侧栏「账户」入口登录，再浏览市场。',
+  bridgeUnavailable: '当前组合未提供市场桥接。',
+  homepage: '主页',
+  'category.agent': '智能体',
+  'category.tool': '工具',
+  'category.ui': '界面',
+  'category.model': '模型',
+  'category.integration': '集成',
+  'category.other': '其他',
+}

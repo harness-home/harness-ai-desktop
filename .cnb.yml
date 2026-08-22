@@ -1,0 +1,22 @@
+# CNB CI: typecheck + build + license gate on every push to main.
+# Linux runner: the electron binary is not needed for these stages, so its
+# download is skipped. Win packaging smoke stays a local/release step
+# (pnpm run dist:win) until a Windows runner is provisioned.
+main:
+  push:
+    - name: verify
+      docker:
+        image: node:24
+      env:
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      stages:
+        - name: install
+          script: |
+            corepack enable
+            pnpm install --frozen-lockfile
+        - name: typecheck
+          script: pnpm typecheck
+        - name: build
+          script: pnpm build
+        - name: license-gate
+          script: node scripts/gen-notices.mjs

@@ -3,6 +3,7 @@ import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import type { RecoveryAction } from '../shared/shell-api'
 import type { HarnessAdapter } from './harness/adapter'
 import { createDshAdapter } from './harness/dsh'
+import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { maskSecrets } from './mask-secrets'
 
@@ -80,6 +81,7 @@ function showFailure(win: BrowserWindow, detail: string): void {
 }
 
 async function startHarness(win: BrowserWindow): Promise<void> {
+  installNodeSpawnShim()
   adapter = createDshAdapter({
     appRoot: app.getAppPath(),
     onExitRequest: (code) => {

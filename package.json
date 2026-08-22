@@ -23,6 +23,7 @@
     "@harness-ai/contracts": "link:../harness-ai-packages/contracts",
     "@harness-ai/desktop-account-ui": "workspace:*",
     "@harness-ai/desktop-brand": "workspace:*",
+    "@harness-ai/desktop-market-ui": "workspace:*",
     "@harness-ai/desktop-windows-pwsh-sandbox": "workspace:*",
     "@deepseek-ai/cordis": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-group": "catalog:cordis",

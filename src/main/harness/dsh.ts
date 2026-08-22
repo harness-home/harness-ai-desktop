@@ -25,6 +25,7 @@ import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
 import { registerAccountRoutes } from './account-routes'
+import { registerMarketRoutes } from './market-routes'
 import type { HarnessAdapter, HarnessHandle } from './adapter'
 import { findFreePort } from './port'
 
@@ -53,6 +54,7 @@ const APP_ROWS = [
     insert: [
       { id: 'harness-ai-brand', name: '@harness-ai/desktop-brand' },
       { id: 'harness-ai-account-ui', name: '@harness-ai/desktop-account-ui' },
+      { id: 'harness-ai-market-ui', name: '@harness-ai/desktop-market-ui' },
     ],
   },
 ]
@@ -149,6 +151,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
           hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
           if (options.accountService !== undefined) {
             registerAccountRoutes(hostCtx, options.accountService)
+            registerMarketRoutes(hostCtx, options.accountService)
           }
           provideCmdline(hostCtx, {
             // The shell embeds the UI itself: never open the system browser.

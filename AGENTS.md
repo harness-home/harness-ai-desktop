@@ -15,6 +15,8 @@ Electron 壳：主进程**同进程 `boot()`** 托管 dsh 运行时 + `loadURL` 
 | `src/renderer/` | 本地占位/兜底页（electron-vite 构建）。**dsh Web UI 不在这里**——它经 `loadURL('http://127.0.0.1:<port>')` 接入，禁走 `file://` |
 | `src/shared/` | 主/渲染共享代码；UI 文案一律进 `src/shared/locales/`（zh-CN + en-US），禁止硬编码字面量 |
 | `plugins/*/src/client/` | dsh 客户端 UI 插件源码：**组件用 TSX**（automatic runtime；`react`/`react/jsx-runtime` 保持 external，由 dsh 模块表供给），esbuild 打成 lazy-CJS bundle |
+
+**预置插件机制（M3）**：`plugins/*` 下的第一方插件即产品预置插件——随安装包发布、经 `src/main/harness/dsh.ts` 的 `APP_ROWS` overlay 注入 dsh 树，无运行时安装。市场后端把同一批以 `preset: true` 展示（`harness-ai-server` 的 `market/seed.ts`）。新增预置插件 = 加 `plugins/<name>` + APP_ROWS 一行 + seed 一条。
 | `scripts/` | 工程脚本（如 `install-electron.mjs`：electron ≥43 无自带 postinstall，二进制由它显式拉取，默认 npmmirror 镜像） |
 
 ## 常用命令

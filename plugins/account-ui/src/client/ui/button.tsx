@@ -1,39 +1,37 @@
-// Based on shadcn/ui button (MIT), animations trimmed.
-import { Slot } from '@radix-ui/react-slot'
+// shadcn/ui button on the Base UI primitive (reference-desktop template, MIT).
+import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
-import type * as React from 'react'
 import { cn } from '../lib/utils.ts'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring',
+  'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-clip-padding px-3 text-sm font-medium whitespace-nowrap transition-all outline-none select-none cursor-pointer focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:opacity-90',
-        outline: 'border border-border bg-transparent hover:bg-foreground/5',
-        ghost: 'hover:bg-foreground/5',
-        destructive: 'bg-destructive text-primary-foreground hover:opacity-90',
+        default: 'bg-primary text-primary-foreground hover:bg-primary/80',
+        outline: 'border-border bg-background hover:bg-muted hover:text-foreground',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost: 'hover:bg-muted hover:text-foreground',
+        destructive: 'bg-destructive/10 text-destructive hover:bg-destructive/20',
       },
       size: {
-        default: 'h-9 px-4 py-2',
-        sm: 'h-8 rounded-md px-3',
-        icon: 'size-9',
+        default: '',
+        sm: 'h-7 px-3 text-xs',
+        lg: 'h-9 px-4',
+        icon: 'size-8 px-0',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
-    },
+    defaultVariants: { variant: 'default', size: 'default' },
   },
 )
 
 export function Button({
   className,
-  variant,
-  size,
-  asChild = false,
+  variant = 'default',
+  size = 'default',
   ...props
-}: React.ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot : 'button'
-  return <Comp className={cn(buttonVariants({ variant, size, className }))} {...props} />
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  return <ButtonPrimitive className={cn(buttonVariants({ variant, size, className }))} data-slot="button" {...props} />
 }
+
+export { buttonVariants }

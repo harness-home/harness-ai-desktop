@@ -1,0 +1,32 @@
+/*
+ * Scoped preflight — the slice of Tailwind's preflight the shadcn components
+ * assume, restricted to .harness-account-scope. Imported before the utilities
+ * and written with :where() so every rule stays at scope-class specificity
+ * (0-1-0): utility classes win ties by source order, while the host page's
+ * bare element selectors (0-0-1) still lose.
+ */
+.harness-account-scope,
+.harness-account-scope :where(*),
+.harness-account-scope :where(*)::before,
+.harness-account-scope :where(*)::after {
+  box-sizing: border-box;
+  border: 0 solid var(--border);
+}
+.harness-account-scope :where(h1, h2, h3, p) {
+  margin: 0;
+}
+.harness-account-scope :where(button, input) {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+.harness-account-scope :where(button) {
+  appearance: none;
+  text-align: inherit;
+}
+.harness-account-scope :where(svg) {
+  display: block;
+}

@@ -10,6 +10,7 @@ const REQUIRED = [
   'out/main/index.js',
   'out/preload/index.cjs',
   'out/renderer/index.html',
+  'build/icon.png',
   'node_modules/@deepseek-ai/dsh-app-boot/package.json',
   'node_modules/@deepseek-ai/dsh-base/cordis.patch.yml',
   'node_modules/@deepseek-ai/dsh-web-app/cordis.patch.yml',

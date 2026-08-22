@@ -13,8 +13,9 @@
   "scripts": {
     "postinstall": "node scripts/install-electron.mjs",
     "build:plugins": "pnpm --filter \"@harness-ai/*\" build",
-    "dev": "pnpm run build:plugins && electron-vite dev",
-    "build": "pnpm run build:plugins && electron-vite build",
+    "gen:icon": "node scripts/generate-icon.mjs",
+    "dev": "node scripts/generate-icon.mjs && pnpm run build:plugins && electron-vite dev",
+    "build": "node scripts/generate-icon.mjs && pnpm run build:plugins && electron-vite build",
     "typecheck": "tsc --noEmit",
     "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml"
   },

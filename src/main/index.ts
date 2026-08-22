@@ -7,11 +7,14 @@ import { createDshAdapter } from './harness/dsh'
 import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { maskSecrets } from './mask-secrets'
+import { createTray, updateTray } from './tray'
 
 /** Startup health gate: native mount + renderer load must finish inside this window. */
 const BOOT_TIMEOUT_MS = 30_000
 
 let adapter: HarnessAdapter | undefined
+let accountService: DesktopAccountService | undefined
+let mainWindow: BrowserWindow | undefined
 let harnessBaseUrl: string | undefined
 let bootState: 'starting' | 'ready' | 'failed' = 'starting'
 let quitting = false
@@ -53,6 +56,7 @@ function createWindow(): BrowserWindow {
     width: 1280,
     height: 800,
     title: 'Harness AI',
+    icon: join(app.getAppPath(), 'build', 'icon.png'),
     show: false,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
@@ -64,13 +68,33 @@ function createWindow(): BrowserWindow {
   // The embedded UI's document title is upstream's build-time constant; the
   // window keeps the product name instead.
   win.on('page-title-updated', (event) => event.preventDefault())
+  // Tray-resident: closing the window hides it while the runtime keeps
+  // serving; only the tray menu (or the recovery page) quits for real.
+  win.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    win.hide()
+  })
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = undefined
+  })
   lockNavigation(win)
   if (bootState === 'ready' && harnessBaseUrl !== undefined) {
     void win.loadURL(harnessBaseUrl)
   } else {
     loadShellPage(win, { state: 'starting' })
   }
+  mainWindow = win
   return win
+}
+
+function showMainWindow(): void {
+  if (mainWindow === undefined || mainWindow.isDestroyed()) createWindow()
+  else {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
 }
 
 function showFailure(win: BrowserWindow, detail: string): void {
@@ -88,13 +112,7 @@ async function startHarness(win: BrowserWindow): Promise<void> {
     onExitRequest: (code) => {
       app.exit(code)
     },
-    // Deployment endpoint is still open (ledger #25); default to the local
-    // dev server until one exists.
-    accountService: new DesktopAccountService({
-      serverUrl: process.env.HARNESS_SERVER_URL ?? 'http://localhost:8720',
-      storageFile: join(app.getPath('userData'), 'account.json'),
-      appVersion: app.getVersion(),
-    }),
+    accountService,
   })
   let timedOut = false
   const timeout = setTimeout(() => {
@@ -144,11 +162,7 @@ if (!locked) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const [win] = BrowserWindow.getAllWindows()
-    if (win !== undefined) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
-    }
+    showMainWindow()
   })
 
   ipcMain.on('shell:recovery', (event, action: unknown) => {
@@ -163,21 +177,41 @@ if (!locked) {
   app.whenReady().then(() => {
     initFileLog()
     log.info(`shell starting (v${app.getVersion()}, electron ${process.versions.electron})`)
+    // Deployment endpoint is still open (ledger #25); default to the local
+    // dev server until one exists.
+    accountService = new DesktopAccountService({
+      serverUrl: process.env.HARNESS_SERVER_URL ?? 'http://localhost:8720',
+      storageFile: join(app.getPath('userData'), 'account.json'),
+      appVersion: app.getVersion(),
+      onChanged: () => updateTray(),
+    })
     const win = createWindow()
     void startHarness(win)
+    createTray({
+      showWindow: showMainWindow,
+      quit: () => app.quit(),
+      accountEmail: () => accountService?.snapshot().email,
+    })
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      showMainWindow()
     })
   })
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit()
+    // Tray-resident: keep the runtime alive with every window closed.
   })
 
-  app.on('will-quit', (event) => {
-    if (quitting) return
+  // Runs before window close events, so the close-to-tray handler lets the
+  // windows actually close on a real quit.
+  app.on('before-quit', () => {
     quitting = true
+  })
+
+  let disposed = false
+  app.on('will-quit', (event) => {
+    if (disposed) return
+    disposed = true
     if (adapter === undefined) return
     // Hold the quit until the runtime tree is disposed (flushes session state).
     event.preventDefault()

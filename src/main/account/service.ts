@@ -50,6 +50,8 @@ export interface AccountServiceOptions {
   serverUrl: string
   storageFile: string
   appVersion: string
+  /** Fired after the local login state changes (login, logout, remote revocation). */
+  onChanged?: () => void
 }
 
 export class DesktopAccountService {
@@ -57,6 +59,12 @@ export class DesktopAccountService {
 
   constructor(options: AccountServiceOptions) {
     this.options = options
+  }
+
+  /** Local login state without touching the network (for tray/menu labels). */
+  snapshot(): { email?: string } {
+    const stored = this.read()
+    return stored === undefined ? {} : { email: stored.email }
   }
 
   private read(): StoredAccount | undefined {
@@ -145,6 +153,7 @@ export class DesktopAccountService {
     if (token === null || token === '') throw new AccountError('login_failed', 'no bearer token in sign-in response')
     const deviceId = await this.ensureDevice(token, this.read()?.deviceId)
     this.write({ email, deviceId, token: safeStorage.encryptString(token).toString('base64') })
+    this.options.onChanged?.()
     return { loggedIn: true, email, deviceId, serverUrl: this.options.serverUrl }
   }
 
@@ -163,6 +172,7 @@ export class DesktopAccountService {
         // Unreachable server; the local state is still cleared below.
       }
       this.clear()
+      this.options.onChanged?.()
     }
     return { loggedIn: false, serverUrl: this.options.serverUrl }
   }
@@ -175,11 +185,13 @@ export class DesktopAccountService {
       if (me.status === 401) {
         // Token revoked server-side; drop the stale local state.
         this.clear()
+        this.options.onChanged?.()
         return { loggedIn: false, serverUrl: this.options.serverUrl }
       }
       if (me.status === 403) {
         // Device unbound remotely; keep the login but force a re-register on next login.
         this.clear()
+        this.options.onChanged?.()
         return { loggedIn: false, serverUrl: this.options.serverUrl }
       }
       const view = (await me.json()) as MeResponse

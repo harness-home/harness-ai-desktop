@@ -14,6 +14,7 @@ directories:
   buildResources: build
 files:
   - out/**
+  - build/icon.png
   - package.json
   - THIRD_PARTY_NOTICES.md
 afterPack: ./scripts/verify-packaged.cjs
@@ -22,6 +23,7 @@ win:
     - target: nsis
       arch:
         - x64
+  icon: build/icon.ico
   artifactName: HarnessAI-${version}-${arch}-Setup.${ext}
 nsis:
   oneClick: false

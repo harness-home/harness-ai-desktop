@@ -4,5 +4,9 @@
   "shell.failed.hint": "本地 Agent 运行时未能启动，可重试或查看日志。",
   "shell.failed.retry": "重试",
   "shell.failed.openLogs": "打开日志",
-  "shell.failed.quit": "退出"
+  "shell.failed.quit": "退出",
+  "tray.status.loggedOut": "未登录",
+  "tray.status.prefix": "已登录：",
+  "tray.open": "打开 Harness AI",
+  "tray.quit": "退出"
 }

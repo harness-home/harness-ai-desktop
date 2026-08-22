@@ -89,6 +89,10 @@ Harness AI Desktop bundles the following third-party packages. Each package is
 distributed under its own license, listed below; full license texts ship inside
 the respective package directories under \`resources/app/node_modules\`.
 
+The Electron adaptation of the Windows ACL PowerShell sandbox
+(plugins/windows-pwsh-sandbox) is adapted from
+anywhere-labs/deepseek-harness-desktop (MIT License, Copyright Anywhere Labs).
+
 ${rows.join('\n')}
 `)
 

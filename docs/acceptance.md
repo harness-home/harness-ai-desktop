@@ -24,7 +24,18 @@ pnpm run dist:win     # dist/ 产出 HarnessAI-<ver>-x64-Setup.exe
 node scripts/smoke.mjs "<安装目录>\Harness AI.exe"
 ```
 
-## 二、交互验收（人工，需要 DeepSeek API Key）
+## 二、交互验收（需要 DeepSeek API Key）
+
+**大部分可用驱动脚本自动化**（先启动应用，Key 经 `DSKEY` 环境变量传入、只进 dsh 凭据存储）：
+
+```
+node scripts/acceptance.mjs setup                 # DSKEY 环境变量 → 凭据存储
+node scripts/acceptance.mjs run <工作区目录>       # 模型会话 + 工作区内工具执行
+node scripts/acceptance.mjs approval <工作区目录>  # 工作区外写入 → 审批请求 → 自动放行 → 执行
+node scripts/acceptance.mjs resume <sessionId>    # 重启应用后：历史完整 + 模型续答
+```
+
+以下人工步骤覆盖脚本没有的 UI 侧观感：
 
 | # | 步骤 | 预期 |
 | --- | --- | --- |
@@ -50,3 +61,9 @@ node scripts/smoke.mjs "<安装目录>\Harness AI.exe"
 - 外部浏览器访问 loopback 页面标题仍是上游「DeepSeek Harness」（构建期常量，B 级 PR 候选；Electron 窗口内已固定为 Harness AI）。
 - 自定义主题（harness-light/harness-dark）已注册，上游外观选择器首版只展示内建三项。
 - macOS 打包（#12）与自动更新（#14）按计划延后。
+
+## Electron 宿主专项修复（升级 dsh 时回归这两处）
+
+- dsh 用 `process.execPath` 生成 Node 子进程的两条路径在 Electron 下都会变成「第二个应用实例」：
+  1. 原生目录选择器 worker → `src/main/harness/node-spawn-shim.ts`（child_process 接缝注入 `ELECTRON_RUN_AS_NODE`）。
+  2. Windows ACL pwsh 沙箱 runner → `plugins/windows-pwsh-sandbox`（行级替换 + trampoline）。症状：pwsh 工具空输出/超时、命令不执行。

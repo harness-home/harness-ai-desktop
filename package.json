@@ -22,7 +22,13 @@
     "@deepseek-ai/cordis-plugin-include": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-loader": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-timer": "catalog:cordis",
-    "@deepseek-ai/dsh-app-boot": "catalog:dsh"
+    "@deepseek-ai/dsh-app-boot": "catalog:dsh",
+    "@deepseek-ai/dsh-base": "catalog:dsh",
+    "@deepseek-ai/dsh-cmdline": "catalog:dsh",
+    "@deepseek-ai/dsh-home-paths": "catalog:dsh",
+    "@deepseek-ai/dsh-host-webserver": "catalog:dsh",
+    "@deepseek-ai/dsh-launch-environment": "catalog:dsh",
+    "@deepseek-ai/dsh-web-app": "catalog:dsh"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",

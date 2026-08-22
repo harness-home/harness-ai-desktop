@@ -42,6 +42,16 @@ const PROFILE_ROOT_CONFIG = `# dsh profile root - an empty entry list managed by
 []
 `
 
+// App-owned overlay layer applied above every user layer: rows for the
+// desktop's own plugins (resolved from this app's node_modules).
+const APP_PATCHES = [
+  {
+    insert: [
+      { id: 'harness-ai-brand', name: '@harness-ai/desktop-brand' },
+    ],
+  },
+]
+
 export interface DshAdapterOptions {
   /** Application root whose package.json anchors bundle resolution (its node_modules holds the runtime). */
   appRoot: string
@@ -67,11 +77,13 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
       writeFileSync(rootConfig, PROFILE_ROOT_CONFIG)
       const homePatches = loadOptionalPatches(BIN_NAME, join(home, PROFILE_PATCH_FILENAME)) ?? []
       // Bundle layers in manifest order, then the profile's user layer, then
-      // the home-level user layer — the upstream launcher's application order.
+      // the home-level user layer — the upstream launcher's application order —
+      // then the app-owned overlay adding our own plugin rows.
       const patches = structuredClone([
         ...profile.layers.flatMap(layer => layer.patches),
         ...profile.patches,
         ...homePatches,
+        ...APP_PATCHES,
       ])
       const port = await findFreePort()
       ctx = await boot(

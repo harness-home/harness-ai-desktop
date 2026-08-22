@@ -12,11 +12,13 @@
   },
   "scripts": {
     "postinstall": "node scripts/install-electron.mjs",
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build:plugins": "pnpm --filter \"@harness-ai/*\" build",
+    "dev": "pnpm run build:plugins && electron-vite dev",
+    "build": "pnpm run build:plugins && electron-vite build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@harness-ai/desktop-brand": "workspace:*",
     "@deepseek-ai/cordis": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-group": "catalog:cordis",
     "@deepseek-ai/cordis-plugin-include": "catalog:cordis",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
+    "@types/react": "^18",
     "electron": "43.4.0",
     "electron-vite": "^4.0.0",
     "typescript": "6.0.3",

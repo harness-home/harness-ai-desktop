@@ -1,4 +1,7 @@
-# Single-package repo: this file exists for pnpm catalogs and build-script allowlist only.
+# Workspace: the shell at the root plus in-repo dsh plugins under plugins/.
+packages:
+  - .
+  - plugins/*
 
 # Flat layout: dsh resolves its profile-bundle plugin closure by walking real
 # node_modules parent directories (no symlink indirection), which the isolated

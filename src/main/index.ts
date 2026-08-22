@@ -50,6 +50,7 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    title: 'Harness AI',
     show: false,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
@@ -58,6 +59,9 @@ function createWindow(): BrowserWindow {
     },
   })
   win.once('ready-to-show', () => win.show())
+  // The embedded UI's document title is upstream's build-time constant; the
+  // window keeps the product name instead.
+  win.on('page-title-updated', (event) => event.preventDefault())
   lockNavigation(win)
   if (bootState === 'ready' && harnessBaseUrl !== undefined) {
     void win.loadURL(harnessBaseUrl)

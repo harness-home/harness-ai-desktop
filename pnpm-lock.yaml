@@ -102,6 +102,9 @@ importers:
       '@harness-ai/desktop-windows-pwsh-sandbox':
         specifier: workspace:*
         version: link:plugins/windows-pwsh-sandbox
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.3
     devDependencies:
       '@types/node':
         specifier: ^22.20.0
@@ -109,6 +112,9 @@ importers:
       '@types/react':
         specifier: ^18
         version: 18.3.31
+      '@types/ws':
+        specifier: ^8.5.0
+        version: 8.18.1
       electron:
         specifier: 43.4.0
         version: 43.4.0(supports-color@7.2.0)
@@ -3686,6 +3692,9 @@ packages:
 
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@vscode/ripgrep-darwin-arm64@1.18.0':
     resolution: {integrity: sha512-r3ktHSvbFycQNF6sl7sNDPocpsI7J+mEzh1IaZFkY0spm3k2Z9t8hPAeOK7+p0l6p6/swkQC14XWX01low+94Q==}
@@ -9834,6 +9843,10 @@ snapshots:
   '@types/retry@0.12.0': {}
 
   '@types/validate-npm-package-name@4.0.2': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.20.1
 
   '@vscode/ripgrep-darwin-arm64@1.18.0':
     optional: true

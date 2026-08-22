@@ -1,9 +1,11 @@
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import type { RecoveryAction } from '../shared/shell-api'
 import { DesktopAccountService } from './account/service'
 import type { HarnessAdapter } from './harness/adapter'
 import { createDshAdapter } from './harness/dsh'
+import { startHostingBridge } from './harness/hosting'
 import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { maskSecrets } from './mask-secrets'
@@ -14,6 +16,18 @@ const BOOT_TIMEOUT_MS = 30_000
 
 let adapter: HarnessAdapter | undefined
 let accountService: DesktopAccountService | undefined
+let hostingBridge: { stop: () => void } | undefined
+
+const nodeRequire = createRequire(import.meta.url)
+
+/** Runtime dsh version, stamped into hosted-session heads as the format discriminator. */
+function dshVersion(): string {
+  try {
+    return (nodeRequire('@deepseek-ai/dsh/package.json') as { version: string }).version
+  } catch {
+    return 'unknown'
+  }
+}
 let mainWindow: BrowserWindow | undefined
 let harnessBaseUrl: string | undefined
 let bootState: 'starting' | 'ready' | 'failed' = 'starting'
@@ -125,6 +139,14 @@ async function startHarness(win: BrowserWindow): Promise<void> {
     const handle = await adapter.start()
     harnessBaseUrl = handle.baseUrl
     log.info(`harness runtime at ${handle.baseUrl}`)
+    if (accountService !== undefined) {
+      hostingBridge = startHostingBridge({
+        localBaseUrl: handle.baseUrl,
+        account: accountService,
+        harnessFormatVersion: dshVersion(),
+        dropChunks: process.env.HARNESS_SYNC_DROP_CHUNKS === '1',
+      })
+    }
     if (timedOut || win.isDestroyed()) return
     // Gate 2: renderer report — loadURL resolves on did-finish-load and
     // rejects on did-fail-load, so an unreachable or crashing page fails loud.
@@ -212,6 +234,7 @@ if (!locked) {
   app.on('will-quit', (event) => {
     if (disposed) return
     disposed = true
+    hostingBridge?.stop()
     if (adapter === undefined) return
     // Hold the quit until the runtime tree is disposed (flushes session state).
     event.preventDefault()

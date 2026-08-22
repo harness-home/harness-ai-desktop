@@ -67,6 +67,28 @@ export class DesktopAccountService {
     return stored === undefined ? {} : { email: stored.email }
   }
 
+  /** The account server this service talks to. */
+  get serverUrl(): string {
+    return this.options.serverUrl
+  }
+
+  /**
+   * Decrypted bearer credentials for main-process features (hosting sync,
+   * device link). Main-process only — never crosses into any renderer.
+   */
+  auth(): { token: string; deviceId?: string } | undefined {
+    const stored = this.read()
+    if (stored === undefined) return undefined
+    try {
+      return {
+        token: this.token(stored),
+        ...(stored.deviceId === undefined ? {} : { deviceId: stored.deviceId }),
+      }
+    } catch {
+      return undefined
+    }
+  }
+
   private read(): StoredAccount | undefined {
     try {
       return JSON.parse(readFileSync(this.options.storageFile, 'utf8')) as StoredAccount

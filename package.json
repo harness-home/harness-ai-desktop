@@ -36,7 +36,8 @@
     "@deepseek-ai/dsh-home-paths": "catalog:dsh",
     "@deepseek-ai/dsh-host-webserver": "catalog:dsh",
     "@deepseek-ai/dsh-launch-environment": "catalog:dsh",
-    "@deepseek-ai/dsh-web-app": "catalog:dsh"
+    "@deepseek-ai/dsh-web-app": "catalog:dsh",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
@@ -45,6 +46,7 @@
     "electron-builder": "^26.0.0",
     "electron-vite": "^4.0.0",
     "typescript": "6.0.3",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "@types/ws": "^8.5.0"
   }
 }

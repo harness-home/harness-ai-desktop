@@ -1,6 +1,7 @@
-// Account dialog: sign-in / sign-up form when logged out, account summary +
-// sign-out when logged in. Talks only to the shell's loopback bridge
+// Account dialog: sign-in / sign-up when logged out, identity card + device
+// and server facts when logged in. Talks only to the shell's loopback bridge
 // (/desktop/account/*); tokens never reach this page.
+import { CircleAlert, LoaderCircle, ServerCog, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type * as React from 'react'
 import { en, type AccountKey } from './locales.ts'
@@ -14,7 +15,9 @@ import { Label } from './ui/label.tsx'
 export interface AccountStatus {
   loggedIn: boolean
   email?: string
+  deviceId?: string
   offline?: boolean
+  serverUrl?: string
 }
 
 export type Translate = (key: AccountKey) => string
@@ -32,6 +35,15 @@ function errorKey(error: unknown): AccountKey {
   const code = error instanceof Error ? error.message : 'generic'
   const key = `error.${code}` as AccountKey
   return key in en ? key : 'error.generic'
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-mono text-[11px] text-foreground">{value}</span>
+    </div>
+  )
 }
 
 export function AccountDialog(props: {
@@ -65,20 +77,41 @@ export function AccountDialog(props: {
       .finally(() => setBusy(false))
   }
 
-  const formIncomplete = busy || email === '' || password === ''
+  const errorRow = error === undefined ? null : (
+    <p className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+      <CircleAlert className="mt-0.5 size-4 shrink-0" />
+      <span>{t(error)}</span>
+    </p>
+  )
 
   let body: React.JSX.Element
   if (bridgeDown) {
     body = <DialogDescription>{t('bridgeUnavailable')}</DialogDescription>
   } else if (status === undefined) {
-    body = <DialogDescription>{t('busy')}</DialogDescription>
+    body = (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <LoaderCircle className="size-4 animate-spin" /> {t('busy')}
+      </div>
+    )
   } else if (status.loggedIn) {
     body = (
       <>
-        <DialogDescription>
-          {`${t('loggedInPrefix')}${status.email ?? ''}${status.offline === true ? t('offlineSuffix') : ''}`}
-        </DialogDescription>
-        {error !== undefined ? <p className="text-sm text-destructive">{t(error)}</p> : null}
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <UserRound className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-foreground">{status.email}</div>
+            <div className={`truncate text-xs ${status.offline === true ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {status.offline === true ? t('statusOffline') : t('statusOnline')}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {status.serverUrl === undefined ? null : <Fact label={t('server')} value={status.serverUrl} />}
+          {status.deviceId === undefined ? null : <Fact label={t('device')} value={status.deviceId.slice(0, 8)} />}
+        </div>
+        {errorRow}
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => act('logout', {})}>
             {busy ? t('busy') : t('signOut')}
@@ -87,35 +120,43 @@ export function AccountDialog(props: {
       </>
     )
   } else {
+    const incomplete = busy || email.trim() === '' || password === ''
     body = (
       <>
-        <DialogDescription>{t('loggedOut')}</DialogDescription>
-        <div className="grid gap-2">
-          <Label htmlFor="harness-account-email">{t('email')}</Label>
-          <Input
-            id="harness-account-email"
-            type="email"
-            autoComplete="off"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
+        <DialogDescription>{t('signedOutBody')}</DialogDescription>
+        <div className="grid gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="harness-account-email">{t('email')}</Label>
+            <Input
+              id="harness-account-email"
+              type="email"
+              autoComplete="off"
+              placeholder={t('emailPlaceholder')}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="harness-account-password">{t('password')}</Label>
+            <Input
+              id="harness-account-password"
+              type="password"
+              autoComplete="off"
+              placeholder={t('passwordPlaceholder')}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !incomplete) act('login', { email: email.trim(), password })
+              }}
+            />
+          </div>
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="harness-account-password">{t('password')}</Label>
-          <Input
-            id="harness-account-password"
-            type="password"
-            autoComplete="off"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </div>
-        {error !== undefined ? <p className="text-sm text-destructive">{t(error)}</p> : null}
+        {errorRow}
         <DialogFooter>
-          <Button variant="outline" disabled={formIncomplete} onClick={() => act('register', { email, password })}>
+          <Button variant="outline" disabled={incomplete} onClick={() => act('register', { email: email.trim(), password })}>
             {t('signUp')}
           </Button>
-          <Button disabled={formIncomplete} onClick={() => act('login', { email, password })}>
+          <Button disabled={incomplete} onClick={() => act('login', { email: email.trim(), password })}>
             {busy ? t('busy') : t('signIn')}
           </Button>
         </DialogFooter>
@@ -127,7 +168,10 @@ export function AccountDialog(props: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('nav')}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <ServerCog className="size-4 text-muted-foreground" />
+            {status?.loggedIn === true ? t('signedInTitle') : t('signedOutTitle')}
+          </DialogTitle>
         </DialogHeader>
         {body}
       </DialogContent>

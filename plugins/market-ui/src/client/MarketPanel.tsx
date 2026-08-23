@@ -21,10 +21,11 @@ interface CatalogState {
   categories: MarketCategory[]
 }
 
-async function fetchListings(category: MarketCategory | 'all', q: string): Promise<CatalogState> {
+async function fetchListings(category: MarketCategory | 'all', q: string, installableOnly: boolean): Promise<CatalogState> {
   const params = new URLSearchParams()
   if (category !== 'all') params.set('category', category)
   if (q !== '') params.set('q', q)
+  if (installableOnly) params.set('installable', 'true')
   let response: Response
   try {
     response = await fetch(`/desktop/market/listings?${params.toString()}`)
@@ -85,6 +86,12 @@ function ListingCard(props: {
           {listing.preset ? (
             <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-primary">{t('preset')}</span>
           ) : null}
+          {listing.source === 'npm' ? (
+            <span className="rounded-md bg-foreground/10 px-1.5 py-0.5 text-[11px] text-muted-foreground">{t('community')}</span>
+          ) : null}
+          {!listing.installable && !listing.preset ? (
+            <span className="rounded-md bg-foreground/10 px-1.5 py-0.5 text-[11px] text-muted-foreground">{t('browseOnly')}</span>
+          ) : null}
           {installed ? (
             <span className="flex items-center gap-1 rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-primary">
               <CheckCircle2 className="size-3" /> {t('installed')}
@@ -100,6 +107,8 @@ function ListingCard(props: {
           {t(`category.${listing.category}` as MarketKey)}
           {listing.author === null ? '' : ` · ${listing.author}`}
           {listing.version === null ? '' : ` · v${listing.version}`}
+          {listing.downloads === null ? '' : ` · ${listing.downloads.toLocaleString()} ${t('downloads')}`}
+          {listing.license === null ? '' : ` · ${listing.license}`}
         </span>
         <div className="flex shrink-0 items-center gap-1.5">
           {listing.homepage === null ? null : (
@@ -122,7 +131,7 @@ function ListingCard(props: {
               {t('uninstall')}
             </Button>
           ) : (
-            <Button size="sm" disabled={busy || listing.packageName === null} onClick={onInstall}>
+            <Button size="sm" disabled={busy || listing.packageName === null || !listing.installable} onClick={onInstall}>
               {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
               {t('install')}
             </Button>
@@ -137,6 +146,7 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   const { t, onClose } = props
   const [category, setCategory] = useState<MarketCategory | 'all'>('all')
   const [q, setQ] = useState('')
+  const [installableOnly, setInstallableOnly] = useState(false)
   const [state, setState] = useState<CatalogState>({ status: 'loading', listings: [], categories: [] })
   const [installed, setInstalled] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | undefined>(undefined)
@@ -148,10 +158,10 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
     let cancelled = false
     setState((prev) => ({ ...prev, status: 'loading' }))
     const timer = setTimeout(() => {
-      void fetchListings(category, q).then((next) => { if (!cancelled) setState(next) })
+      void fetchListings(category, q, installableOnly).then((next) => { if (!cancelled) setState(next) })
     }, 200)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [category, q])
+  }, [category, q, installableOnly])
 
   useEffect(reloadInstalled, [reloadInstalled])
 
@@ -210,6 +220,15 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => setInstallableOnly((value) => !value)}
+          className={`cursor-pointer rounded-md border px-2.5 py-1 text-sm transition-colors ${
+            installableOnly ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-foreground/5'
+          }`}
+        >
+          {t('installableOnly')}
+        </button>
       </div>
 
       {message === undefined ? null : (

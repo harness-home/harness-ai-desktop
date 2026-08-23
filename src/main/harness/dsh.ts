@@ -24,7 +24,9 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
+import { log } from '../log'
 import { installProfileFallbackResolver } from './module-resolution'
+import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
 import { registerAccountRoutes } from './account-routes'
 import { registerChromeCss } from './chrome-css'
 import { registerMarketRoutes } from './market-routes'
@@ -140,63 +142,87 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
       // invoking directory, unlike the CLI.
       const environment = loadLayeredEnv(BIN_NAME, home)
       healProfilesModuleFallback(installAnchor, home)
-      initProfile(resolveProfileDir(PROFILE_NAME, home), PROFILE_BUNDLES)
-      const profile = loadProfile(BIN_NAME, PROFILE_NAME, installAnchor, home)
-      const rootConfig = join(profile.dir, PROFILE_ROOT_FILENAME)
-      writeFileSync(rootConfig, PROFILE_ROOT_CONFIG)
-      const homePatches = loadOptionalPatches(BIN_NAME, join(home, PROFILE_PATCH_FILENAME)) ?? []
-      const bundlePatches = profile.layers.flatMap(layer => layer.patches)
-      // Bundle layers in manifest order, then the profile's user layer, then
-      // the home-level user layer — the upstream launcher's application order —
-      // then the app-owned overlays (our plugin rows + shipped agent presets).
-      const patches = structuredClone([
-        ...bundlePatches,
-        ...profile.patches,
-        ...homePatches,
-        ...APP_ROWS,
-        ...composedOverlays(installAnchor, [bundlePatches, profile.patches, homePatches]),
-      ])
-      // Must be installed before boot: the Loader resolves every plugin row
-      // during the tree mount.
-      releaseResolver?.()
-      releaseResolver = installProfileFallbackResolver(profile.dir)
-      const port = await findFreePort()
-      ctx = await boot(
-        BIN_NAME,
-        rootConfig,
-        patches,
-        (hostCtx) => {
-          hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
-          registerChromeCss(hostCtx)
-          if (options.accountService !== undefined) {
-            registerAccountRoutes(hostCtx, options.accountService)
-            registerMarketRoutes(hostCtx, {
-              account: options.accountService,
-              appRoot: options.appRoot,
-              profileDir: profile.dir,
-              requestRestart: options.requestRestart,
+      const profileDir = resolveProfileDir(PROFILE_NAME, home)
+      initProfile(profileDir, PROFILE_BUNDLES)
+      // A market-installed plugin must never be load-bearing: anything that
+      // cannot possibly load is disabled before the Loader sees it.
+      auditProfileBundles(profileDir)
+
+      const attempt = async (): Promise<HarnessHandle> => {
+        const profile = loadProfile(BIN_NAME, PROFILE_NAME, installAnchor, home)
+        const rootConfig = join(profile.dir, PROFILE_ROOT_FILENAME)
+        writeFileSync(rootConfig, PROFILE_ROOT_CONFIG)
+        const homePatches = loadOptionalPatches(BIN_NAME, join(home, PROFILE_PATCH_FILENAME)) ?? []
+        const bundlePatches = profile.layers.flatMap(layer => layer.patches)
+        // Bundle layers in manifest order, then the profile's user layer, then
+        // the home-level user layer — the upstream launcher's application order —
+        // then the app-owned overlays (our plugin rows + shipped agent presets).
+        const patches = structuredClone([
+          ...bundlePatches,
+          ...profile.patches,
+          ...homePatches,
+          ...APP_ROWS,
+          ...composedOverlays(installAnchor, [bundlePatches, profile.patches, homePatches]),
+        ])
+        // Must be installed before boot: the Loader resolves every plugin row
+        // during the tree mount.
+        releaseResolver?.()
+        releaseResolver = installProfileFallbackResolver(profile.dir)
+        const port = await findFreePort()
+        ctx = await boot(
+          BIN_NAME,
+          rootConfig,
+          patches,
+          (hostCtx) => {
+            hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
+            registerChromeCss(hostCtx)
+            if (options.accountService !== undefined) {
+              registerAccountRoutes(hostCtx, options.accountService)
+              registerMarketRoutes(hostCtx, {
+                account: options.accountService,
+                appRoot: options.appRoot,
+                profileDir: profile.dir,
+                requestRestart: options.requestRestart,
+              })
+            }
+            provideCmdline(hostCtx, {
+              // The shell embeds the UI itself: never open the system browser.
+              args: ['--no-open', '--host', '127.0.0.1', '--port', String(port)],
+              exit: options.onExitRequest,
             })
-          }
-          provideCmdline(hostCtx, {
-            // The shell embeds the UI itself: never open the system browser.
-            args: ['--no-open', '--host', '127.0.0.1', '--port', String(port)],
-            exit: options.onExitRequest,
-          })
-        },
-        // In-box packages resolve from the installation (deterministic, and a
-        // profile copy must never shadow the runtime); market-installed
-        // plugins are picked up by the profile fallback resolver above.
-        pathToFileURL(options.appRoot).href + '/',
-      )
-      if (stopped) {
-        await ctx.fiber.dispose()
-        throw new Error(`${BIN_NAME}: harness runtime was stopped during startup`)
+          },
+          // In-box packages resolve from the installation (deterministic, and a
+          // profile copy must never shadow the runtime); market-installed
+          // plugins are picked up by the profile fallback resolver above.
+          pathToFileURL(options.appRoot).href + '/',
+        )
+        if (stopped) {
+          await ctx.fiber.dispose()
+          throw new Error(`${BIN_NAME}: harness runtime was stopped during startup`)
+        }
+        const webServer = ctx.get('webServer')
+        if (webServer === undefined) {
+          throw new Error(`${BIN_NAME}: harness runtime settled without a web server`)
+        }
+        return { baseUrl: `http://127.0.0.1:${String(webServer.port)}`, port: webServer.port }
       }
-      const webServer = ctx.get('webServer')
-      if (webServer === undefined) {
-        throw new Error(`${BIN_NAME}: harness runtime settled without a web server`)
+
+      try {
+        return await attempt()
+      } catch (error) {
+        // Second line of defence: a profile plugin that passes the audit can
+        // still break the tree at import time. Rather than leave the user with
+        // a dead client, disable every profile-installed plugin and come up
+        // without them; the market panel reports what was disabled.
+        if (stopped) throw error
+        const suspects = profileOwnedBundles(profileDir)
+        if (suspects.length === 0) throw error
+        log.warn(`harness: boot failed with profile plugins active (${suspects.join(', ')}); retrying without them`)
+        quarantineBundles(profileDir, suspects, 'boot-failed')
+        releaseResolver?.()
+        releaseResolver = undefined
+        return await attempt()
       }
-      return { baseUrl: `http://127.0.0.1:${String(webServer.port)}`, port: webServer.port }
     },
 
     async stop(): Promise<void> {

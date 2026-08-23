@@ -11,7 +11,7 @@
 //   applied when the user asks, or on the next real quit.
 // - Nothing here may throw into startup. An unreachable feed is a status the
 //   user can read, not a failure that touches the runtime.
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 // electron-updater is CommonJS and the main bundle is ESM, so its named exports
@@ -64,13 +64,47 @@ function setStatus(patch: Partial<UpdateStatus>): void {
   onChanged?.()
 }
 
-/** The feed this client should use, or undefined when none is configured. */
-function resolveFeedUrl(): string | undefined {
-  const override = process.env.HARNESS_UPDATE_FEED_URL
-  if (override !== undefined && override.trim() !== '') return override.trim()
+/**
+ * Host the packaged feed points at while the distribution location is still
+ * open (workspace ledger #14/#30). A build carrying only this placeholder has
+ * no real feed: saying so beats letting every client sit in a permanent
+ * "update check failed", which reads like a defect rather than a pending
+ * decision. Delete this constant when the real host exists.
+ */
+const PLACEHOLDER_FEED_HOST = 'download.harness-ai.dev'
+
+/** What feed, if any, this client should use. */
+export type FeedChoice =
+  /** Use this URL, overriding whatever the build carries. */
+  | { kind: 'override'; url: string }
+  /** Use the feed the packaged build carries. */
+  | { kind: 'packaged' }
+  /** No feed: updates cannot run. */
+  | { kind: 'none' }
+
+/**
+ * Decide the feed from the environment override and the packaged config.
+ * Pure, so the precedence is testable without a packaged app.
+ *
+ * @param override - value of HARNESS_UPDATE_FEED_URL, if set.
+ * @param config - contents of the packaged app-update.yml, if present.
+ */
+export function resolveFeed(override: string | undefined, config: string | undefined): FeedChoice {
+  if (override !== undefined && override.trim() !== '') return { kind: 'override', url: override.trim() }
+  if (config === undefined) return { kind: 'none' }
+  return config.includes(PLACEHOLDER_FEED_HOST) ? { kind: 'none' } : { kind: 'packaged' }
+}
+
+function readPackagedFeedConfig(): string | undefined {
   // electron-builder writes app-update.yml next to the app resources when the
   // build has a publish provider; electron-updater reads it by itself.
-  return existsSync(join(process.resourcesPath, 'app-update.yml')) ? '' : undefined
+  const path = join(process.resourcesPath, 'app-update.yml')
+  if (!existsSync(path)) return undefined
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return undefined
+  }
 }
 
 /** Automatic checking is opt-out, but only where updates work at all. */
@@ -95,8 +129,8 @@ export function initUpdater(options: { onChanged: () => void }): void {
     log.info('updater: disabled (development build)')
     return
   }
-  const feed = resolveFeedUrl()
-  if (feed === undefined) {
+  const feed = resolveFeed(process.env.HARNESS_UPDATE_FEED_URL, readPackagedFeedConfig())
+  if (feed.kind === 'none') {
     status = { phase: 'unsupported', currentVersion, reason: 'no-feed' }
     log.info('updater: disabled (no update feed configured)')
     return
@@ -112,9 +146,9 @@ export function initUpdater(options: { onChanged: () => void }): void {
   // Downloading is fine unattended; installing is not.
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-  if (feed !== '') {
-    autoUpdater.setFeedURL({ provider: 'generic', url: feed })
-    log.info(`updater: feed overridden to ${feed}`)
+  if (feed.kind === 'override') {
+    autoUpdater.setFeedURL({ provider: 'generic', url: feed.url })
+    log.info(`updater: feed overridden to ${feed.url}`)
   }
 
   autoUpdater.on('checking-for-update', () => { setStatus({ phase: 'checking', message: undefined }) })

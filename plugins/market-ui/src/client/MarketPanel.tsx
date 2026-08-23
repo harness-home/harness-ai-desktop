@@ -2,7 +2,7 @@
 // desktop profile, remove it again, and restart to load it. Installation runs
 // in the main process through the bundled pnpm (see market-routes.ts); this
 // page only ever names a catalog listing id.
-import type { MarketCategory, MarketListing, MarketListResponse } from '@harness-ai/contracts'
+import type { MarketCategory, MarketListing, MarketListingResponse, MarketListResponse } from '@harness-ai/contracts'
 import {
   CheckCircle2, CircleAlert, Download, ExternalLink, LoaderCircle, PackageCheck, RefreshCw, Search, Trash2, X,
 } from 'lucide-react'
@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MarketKey } from './locales.ts'
 import { Button } from './ui/button.tsx'
 import { Input } from './ui/input.tsx'
+import { dismissMarketOffer, useMarketOffer } from './store.ts'
 
 export type Translate = (key: MarketKey) => string
 
@@ -36,6 +37,17 @@ async function fetchListings(category: MarketCategory | 'all', q: string, instal
   if (!response.ok) return { status: 'bridge-unavailable', listings: [], categories: [] }
   const body = (await response.json()) as MarketListResponse
   return { status: 'ready', listings: body.listings, categories: body.categories }
+}
+
+/** One listing by id, for an install offer whose row is not on the current page. */
+async function fetchListing(id: string): Promise<MarketListing | null> {
+  try {
+    const response = await fetch(`/desktop/market/listing?id=${encodeURIComponent(id)}`)
+    if (!response.ok) return null
+    return ((await response.json()) as MarketListingResponse).listing
+  } catch {
+    return null
+  }
 }
 
 async function fetchInstalled(): Promise<Record<string, string>> {
@@ -142,6 +154,63 @@ function ListingCard(props: {
   )
 }
 
+type OfferState = { status: 'loading' } | { status: 'missing' } | { status: 'ready'; listing: MarketListing }
+
+/**
+ * Confirmation banner for an install a deep link asked for. The link named only
+ * a catalog id; this resolves it and shows what would be installed, and nothing
+ * happens until the button below is pressed.
+ */
+function InstallOffer(props: {
+  offer: OfferState
+  busy: boolean
+  t: Translate
+  onConfirm: (listing: MarketListing) => void
+  onDismiss: () => void
+}) {
+  const { offer, busy, t, onConfirm, onDismiss } = props
+  const listing = offer.status === 'ready' ? offer.listing : undefined
+  const blocked = listing !== undefined && (!listing.installable || listing.packageName === null || listing.preset)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary/10 px-6 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Download className="size-4 text-primary" />
+          {t('offer.title')}
+        </div>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {offer.status === 'loading'
+            ? t('offer.loading')
+            : offer.status === 'missing'
+              ? t('offer.missing')
+              : blocked
+                ? t('offer.notInstallable')
+                : t('offer.body')}
+        </p>
+        {listing === undefined ? null : (
+          <p className="mt-1 truncate text-sm text-foreground">
+            <span className="font-medium">{listing.name}</span>
+            {listing.packageName === null ? '' : ` · ${listing.packageName}`}
+            {listing.version === null ? '' : `@${listing.version}`}
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onDismiss}>{t('offer.dismiss')}</Button>
+        <Button
+          size="sm"
+          disabled={busy || listing === undefined || blocked}
+          onClick={() => { if (listing !== undefined) onConfirm(listing) }}
+        >
+          {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          {t('offer.confirm')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   const { t, onClose } = props
   const [category, setCategory] = useState<MarketCategory | 'all'>('all')
@@ -151,6 +220,8 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   const [installed, setInstalled] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | undefined>(undefined)
   const [message, setMessage] = useState<{ kind: 'error' | 'restart'; text: string } | undefined>(undefined)
+  const offeredId = useMarketOffer()
+  const [offer, setOffer] = useState<OfferState | undefined>(undefined)
 
   const reloadInstalled = useCallback(() => { void fetchInstalled().then(setInstalled) }, [])
 
@@ -164,6 +235,22 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   }, [category, q, installableOnly])
 
   useEffect(reloadInstalled, [reloadInstalled])
+
+  // Resolve the listing a deep link offered, so the confirmation shows what it
+  // actually is rather than an opaque id.
+  useEffect(() => {
+    if (offeredId === undefined) {
+      setOffer(undefined)
+      return
+    }
+    let cancelled = false
+    setOffer({ status: 'loading' })
+    void fetchListing(offeredId).then((listing) => {
+      if (cancelled) return
+      setOffer(listing === null ? { status: 'missing' } : { status: 'ready', listing })
+    })
+    return () => { cancelled = true }
+  }, [offeredId])
 
   // Escape closes the overlay, matching every other full-frame surface.
   useEffect(() => {
@@ -230,6 +317,19 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
           {t('installableOnly')}
         </button>
       </div>
+
+      {offer === undefined ? null : (
+        <InstallOffer
+          offer={offer}
+          busy={offer.status === 'ready' && busyId === offer.listing.id}
+          t={t}
+          onConfirm={(listing) => {
+            act(listing.id, () => post('install', { id: listing.id }))
+            dismissMarketOffer()
+          }}
+          onDismiss={dismissMarketOffer}
+        />
+      )}
 
       {message === undefined ? null : (
         <div className={`flex items-center justify-between gap-3 border-b border-border px-6 py-2.5 text-sm ${

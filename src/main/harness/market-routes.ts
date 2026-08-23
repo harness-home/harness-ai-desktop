@@ -119,6 +119,22 @@ export function registerMarketRoutes(ctx: Context, options: MarketRouteOptions):
       res.end(result.text)
     })
 
+    /**
+     * One listing by id. Used when a deep link names a listing the current
+     * catalog page does not contain, so the install offer can show what it is
+     * about before the user confirms.
+     */
+    route('/desktop/market/listing', 'GET', async (req, res) => {
+      const id = new URL(req.url ?? '', 'http://localhost').searchParams.get('id') ?? ''
+      if (id === '') {
+        send(res, 400, { error: { code: 'bad_request', message: 'listing id is required' } })
+        return
+      }
+      const result = await upstream(`/api/market/listings/${encodeURIComponent(id)}`)
+      res.writeHead(result.status, { 'Content-Type': JSON_TYPE })
+      res.end(result.text)
+    })
+
     /** Locally installed plugin packages, so the UI can mark catalog rows. */
     route('/desktop/market/installed', 'GET', async (_req, res) => {
       send(res, 200, { installed: installedPlugins(options.profileDir) })

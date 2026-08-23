@@ -18,7 +18,8 @@
     "build": "node scripts/generate-icon.mjs && pnpm run build:plugins && electron-vite build",
     "typecheck": "tsc --noEmit",
     "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml",
-    "smoke:packaged": "node scripts/smoke-packaged.mjs"
+    "smoke:packaged": "node scripts/smoke-packaged.mjs",
+    "dsh:version": "node scripts/set-dsh-version.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "catalog:cordis",

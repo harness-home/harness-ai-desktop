@@ -27,7 +27,9 @@ pnpm dev              # 先构建 plugins/*，再 electron-vite dev 启动壳窗
 pnpm build            # 插件 + main/preload/renderer 构建
 pnpm typecheck        # tsc --noEmit（含 plugins/*/src）
 node scripts/smoke.mjs  # 自动化启动冒烟（端点/页面/品牌插件断言）
-pnpm run dist:win     # License 闸门 + electron-builder Win x64 NSIS + afterPack 硬校验
+pnpm run dist:win     # License 闸门 + electron-builder Win x64 NSIS + afterPack 硬校验（关键路径 + 运行时闭包）
+node scripts/smoke-packaged.mjs  # 打包产物冒烟：**先复制到仓库外**再启动（必须，见下）
+pnpm run dsh:version 0.1.2-rc.1  # 一键改全部 dsh catalog 版本（不带参数 = 打印当前版本）
 ```
 
 最低验证：改动后 `pnpm typecheck` 与 `pnpm build` 必须通过；涉及窗口/启动/运行时行为的改动跑 `node scripts/smoke.mjs`。完整验收见 [docs/acceptance.md](docs/acceptance.md)。
@@ -36,7 +38,9 @@ pnpm run dist:win     # License 闸门 + electron-builder Win x64 NSIS + afterPa
 
 - 运行时 dsh = **npm 精确版本依赖**，全部经 `pnpm-workspace.yaml` 的 catalogs 引用（`catalog:dsh` / `catalog:cordis`），版本号只在 catalog 出现一次。
 - 新增 dsh 依赖时必须写 `"@deepseek-ai/dsh-xxx": "catalog:dsh"`，并在 catalog 补条目；**禁止在 package.json 内写死版本**。
-- 升级 dsh = 改 catalog 一处 + 独立任务回归；禁止顺手升级。
+- 升级 dsh = `pnpm run dsh:version <版本>` 一条命令改全部 catalog 条目 + 独立任务回归；禁止顺手升级、禁止手改版本号（pnpm 会重写本文件并展开 YAML 锚点，脚本才是单点事实源）。
+- **打包依赖闭包**：dsh 包把兄弟包声明为 peerDependencies，而 electron-builder 只走 dependencies——凡运行时要用的必须列进本仓库 `dependencies`。afterPack 的闭包校验会挡住遗漏。
+- **打包冒烟必须在仓库外跑**：`dist/win-unpacked` 位于项目内，Node 向上查找会命中开发树 node_modules，缺依赖也能跑起来（真实事故：装到 Program Files 后 loader entries 全崩）。用 `scripts/smoke-packaged.mjs`，它会先复制到临时目录。
 - 框架魔改走三级修改策略（根 AGENTS 红线 #1）；补丁产生时建 `docs/框架补丁清单.md`。
 
 ## 本仓库红线摘要

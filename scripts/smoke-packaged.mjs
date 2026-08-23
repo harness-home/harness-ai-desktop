@@ -57,7 +57,14 @@ else {
 
 child.kill()
 await new Promise((resolve) => child.once('exit', resolve))
-rmSync(stage, { recursive: true, force: true })
+// Electron leaves helper processes holding files for a moment; staging cleanup
+// is best effort and must never turn a passing smoke into a failure.
+await new Promise((resolve) => setTimeout(resolve, 2000))
+try {
+  rmSync(stage, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 })
+} catch {
+  console.warn(`smoke-packaged: could not remove ${stage} yet (helper processes still exiting)`)
+}
 
 if (failures.length > 0) {
   console.error(`smoke-packaged FAILED:\n  ${failures.join('\n  ')}`)

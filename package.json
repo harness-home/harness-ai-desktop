@@ -17,6 +17,7 @@
     "dev": "node scripts/generate-icon.mjs && pnpm run build:plugins && electron-vite dev",
     "build": "node scripts/generate-icon.mjs && pnpm run build:plugins && electron-vite build",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "dsh:version": "node scripts/set-dsh-version.mjs"
@@ -66,11 +67,12 @@
   "devDependencies": {
     "@types/node": "^22.20.0",
     "@types/react": "^18",
+    "@types/ws": "^8.5.0",
     "electron": "43.4.0",
     "electron-builder": "^26.0.0",
     "electron-vite": "^4.0.0",
     "typescript": "6.0.3",
     "vite": "^7.0.0",
-    "@types/ws": "^8.5.0"
+    "vitest": "^4.1.11"
   }
 }

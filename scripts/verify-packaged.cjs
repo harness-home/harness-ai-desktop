@@ -30,6 +30,9 @@ const REQUIRED = [
   'node_modules/@harness-ai/desktop-account-ui/lib/client.js',
   'node_modules/@harness-ai/desktop-market-ui/lib/client.js',
   'node_modules/@harness-ai/desktop-windows-pwsh-sandbox/lib/trampoline.mjs',
+  'node_modules/@harness-ai/desktop-directory-picker/lib/index.js',
+  // pnpm powers market plugin installs into the profile.
+  'node_modules/pnpm/bin/pnpm.mjs',
   'THIRD_PARTY_NOTICES.md',
 ]
 

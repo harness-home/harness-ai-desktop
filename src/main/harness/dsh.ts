@@ -24,7 +24,9 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
+import { installProfileFallbackResolver } from './module-resolution'
 import { registerAccountRoutes } from './account-routes'
+import { registerChromeCss } from './chrome-css'
 import { registerMarketRoutes } from './market-routes'
 import type { HarnessAdapter, HarnessHandle } from './adapter'
 import { findFreePort } from './port'
@@ -89,6 +91,15 @@ function composedOverlays(
       },
     })
   }
+  // The upstream native picker spawns a parentless helper that never surfaces
+  // inside the shell; swap in the Electron-dialog backend.
+  const picker = rows.get('directory-picker')
+  if (picker !== undefined) {
+    overlays.push(
+      { id: 'directory-picker', name: picker.name as string, disabled: true },
+      { insert: [{ id: 'desktop-directory-picker', name: '@harness-ai/desktop-directory-picker' }] },
+    )
+  }
   const pwshSandbox = rows.get('pwsh-sandbox')
   if (process.platform === 'win32' && pwshSandbox?.name === '@deepseek-ai/dsh-pwsh-sandbox') {
     overlays.push(
@@ -112,11 +123,14 @@ export interface DshAdapterOptions {
   onExitRequest: (code: number) => void
   /** When present, the account bridge routes are mounted on the web server. */
   accountService?: DesktopAccountService
+  /** Restart the shell (used after a market install changes the profile). */
+  requestRestart: () => void
 }
 
 export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
   let ctx: Context | undefined
   let stopped = false
+  let releaseResolver: (() => void) | undefined
 
   return {
     async start(): Promise<HarnessHandle> {
@@ -142,6 +156,10 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
         ...APP_ROWS,
         ...composedOverlays(installAnchor, [bundlePatches, profile.patches, homePatches]),
       ])
+      // Must be installed before boot: the Loader resolves every plugin row
+      // during the tree mount.
+      releaseResolver?.()
+      releaseResolver = installProfileFallbackResolver(profile.dir)
       const port = await findFreePort()
       ctx = await boot(
         BIN_NAME,
@@ -149,9 +167,15 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
         patches,
         (hostCtx) => {
           hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
+          registerChromeCss(hostCtx)
           if (options.accountService !== undefined) {
             registerAccountRoutes(hostCtx, options.accountService)
-            registerMarketRoutes(hostCtx, options.accountService)
+            registerMarketRoutes(hostCtx, {
+              account: options.accountService,
+              appRoot: options.appRoot,
+              profileDir: profile.dir,
+              requestRestart: options.requestRestart,
+            })
           }
           provideCmdline(hostCtx, {
             // The shell embeds the UI itself: never open the system browser.
@@ -159,6 +183,9 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
             exit: options.onExitRequest,
           })
         },
+        // In-box packages resolve from the installation (deterministic, and a
+        // profile copy must never shadow the runtime); market-installed
+        // plugins are picked up by the profile fallback resolver above.
         pathToFileURL(options.appRoot).href + '/',
       )
       if (stopped) {
@@ -174,6 +201,8 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
 
     async stop(): Promise<void> {
       stopped = true
+      releaseResolver?.()
+      releaseResolver = undefined
       const current = ctx
       ctx = undefined
       if (current !== undefined) await current.fiber.dispose()

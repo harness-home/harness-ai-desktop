@@ -1,3 +1,6 @@
+// Sidebar footer action opening the market overlay. Shares the shell's
+// `harness-sidebar-action` chrome class with the account entry so both stack
+// full-width above Settings.
 import { Store } from 'lucide-react'
 import type { Translate } from './MarketPanel.tsx'
 
@@ -8,22 +11,9 @@ export function SidebarLauncher(props: { wide: boolean; t: Translate; onOpen: ()
       type="button"
       aria-label={t('nav')}
       title={t('nav')}
+      data-rail={wide ? 'false' : 'true'}
       onClick={onOpen}
-      className="harness-market-scope"
-      style={{
-        display: 'flex',
-        width: '100%',
-        alignItems: 'center',
-        gap: 8,
-        padding: '6px 8px',
-        border: 0,
-        background: 'transparent',
-        cursor: 'pointer',
-        color: 'var(--dsw-alias-label-primary, inherit)',
-        borderRadius: 6,
-        justifyContent: wide ? 'flex-start' : 'center',
-        fontSize: 14,
-      }}
+      className="harness-sidebar-action"
     >
       <Store size={16} />
       {wide ? <span>{t('nav')}</span> : null}

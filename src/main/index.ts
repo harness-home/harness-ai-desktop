@@ -129,6 +129,11 @@ async function startHarness(win: BrowserWindow): Promise<void> {
       app.exit(code)
     },
     accountService,
+    requestRestart: () => {
+      log.info('restart requested (market profile change)')
+      app.relaunch()
+      app.exit(0)
+    },
   })
   let timedOut = false
   const timeout = setTimeout(() => {

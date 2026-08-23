@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { BrowserWindow, app, ipcMain, shell } from 'electron'
+import { BrowserWindow, Menu, app, ipcMain, shell } from 'electron'
 import type { RecoveryAction } from '../shared/shell-api'
 import { DesktopAccountService } from './account/service'
 import type { HarnessAdapter } from './harness/adapter'
@@ -72,6 +72,8 @@ function createWindow(): BrowserWindow {
     title: 'Harness AI',
     icon: join(app.getAppPath(), 'build', 'icon.png'),
     show: false,
+    // Windows/Linux draw a per-window menu bar even with no application menu.
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       sandbox: true,
@@ -195,6 +197,11 @@ if (!locked) {
     if (!fromShellPage) return
     if (action === 'retry' || action === 'open-logs' || action === 'quit') handleRecovery(action)
   })
+
+  // No application menu: the product chrome is the embedded UI plus the tray,
+  // and the default Electron menu would also expose reload/devtools shortcuts
+  // over the runtime surface. Must run before the first window is created.
+  Menu.setApplicationMenu(null)
 
   app.whenReady().then(() => {
     initFileLog()

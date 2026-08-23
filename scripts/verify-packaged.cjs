@@ -1,5 +1,10 @@
-// afterPack hard gate: the packaged tree must contain every runtime-critical
-// file, or the build fails here instead of on the user's machine.
+// afterPack hard gate. Two checks, both learned from a real escape:
+// 1. required paths exist in the packaged tree;
+// 2. the whole runtime module closure (dependencies AND peerDependencies) is
+//    present. dsh packages declare their Service Definition siblings as peers
+//    and electron-builder walks only `dependencies`, so a missing peer boots
+//    fine from dist/ (Node's parent walk finds the dev tree) and fails on a
+//    real install. Never trust a smoke test run from inside the repo.
 'use strict'
 const { existsSync } = require('node:fs')
 const { join } = require('node:path')
@@ -22,8 +27,17 @@ const REQUIRED = [
   'node_modules/koffi/package.json',
   'node_modules/@harness-ai/desktop-brand/lib/index.js',
   'node_modules/@harness-ai/desktop-brand/lib/client.js',
+  'node_modules/@harness-ai/desktop-account-ui/lib/client.js',
+  'node_modules/@harness-ai/desktop-market-ui/lib/client.js',
+  'node_modules/@harness-ai/desktop-windows-pwsh-sandbox/lib/trampoline.mjs',
   'THIRD_PARTY_NOTICES.md',
 ]
+
+/** Closure packages that never load in the packaged host (browser-only peers). */
+const NOT_REQUIRED_AT_RUNTIME = new Set([
+  'react', 'react-dom', 'scheduler', 'loose-envify', 'csstype',
+  '@types/react', '@types/prop-types',
+])
 
 module.exports = async function verifyPackaged(context) {
   const appRoot = join(context.appOutDir, 'resources', 'app')
@@ -31,5 +45,16 @@ module.exports = async function verifyPackaged(context) {
   if (missing.length > 0) {
     throw new Error(`packaged runtime is incomplete; missing:\n  ${missing.join('\n  ')}`)
   }
-  console.log(`verify-packaged: ${String(REQUIRED.length)} required paths present`)
+
+  const { runtimeClosure } = await import('./runtime-closure.mjs')
+  const closure = runtimeClosure()
+  const missingModules = closure.filter((name) =>
+    !NOT_REQUIRED_AT_RUNTIME.has(name)
+    && !existsSync(join(appRoot, 'node_modules', ...name.split('/'), 'package.json')))
+  if (missingModules.length > 0) {
+    throw new Error(
+      `packaged node_modules is missing ${String(missingModules.length)} runtime-closure package(s) `
+      + `(declare them as direct dependencies):\n  ${missingModules.join('\n  ')}`)
+  }
+  console.log(`verify-packaged: ${String(REQUIRED.length)} required paths, ${String(closure.length)} closure packages present`)
 }

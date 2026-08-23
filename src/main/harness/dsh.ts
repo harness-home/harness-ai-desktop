@@ -26,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
 import { log } from '../log'
 import { installProfileFallbackResolver } from './module-resolution'
+import { directoryPickerOverlays } from './picker-overlay'
 import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
 import { registerAccountRoutes } from './account-routes'
 import { registerChromeCss } from './chrome-css'
@@ -94,15 +95,8 @@ function composedOverlays(
       },
     })
   }
-  // The upstream native picker spawns a parentless helper that never surfaces
-  // inside the shell; swap in the Electron-dialog backend.
   const picker = rows.get('directory-picker')
-  if (picker !== undefined) {
-    overlays.push(
-      { id: 'directory-picker', name: picker.name as string, disabled: true },
-      { insert: [{ id: 'desktop-directory-picker', name: '@harness-ai/desktop-directory-picker' }] },
-    )
-  }
+  if (picker !== undefined) overlays.push(...directoryPickerOverlays(picker.name as string))
   const pwshSandbox = rows.get('pwsh-sandbox')
   if (process.platform === 'win32' && pwshSandbox?.name === '@deepseek-ai/dsh-pwsh-sandbox') {
     overlays.push(

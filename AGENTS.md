@@ -59,6 +59,18 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - **降级必须可见**：`/desktop/market/quarantined` + 市场面板顶部横幅列出被停用的插件与原因。**静默降级等同于 bug**——`releaseQuarantine()` 失败时绝不能顺手删掉记录（踩过：删了之后插件永远停用且界面上什么都不显示）。
 - 改这块必须跑 `src/main/harness/profile-plugins.test.ts`，并至少手工验一次「插件包被挪走 → 客户端照常启动 + 横幅出现」。
 
+## 换 dsh 内置行时必须整对替换（2026-08-23，真实事故）
+
+**事故**：新建对话 → 点「选择工作区」**毫无反应**（0.1.0~0.1.2 全中，等于客户端根本没法开新工作区）。根因不在我们的 picker 实现，而在 overlay 的替换方式：上游 `directory-picker` 行指向 `@deepseek-ai/dsh-host-directory-picker-auto`，它挂载的是**一对**——host 后端 + **客户端界面包**（`dsh-client-ui-directory-picker-native`，负责填 ui-workspace 的 `conversation.hero.workspace.directoryFlow` / `sidebar.workspaces.directoryFlow` 两个洞）。我们把这一行整个 `disabled` 掉、只插回自己的 host 后端，客户端那一半就再没人挂载：`WorkspacePickFlow` 读到 `flowAvailable === false` → 菜单项列表为空 → **整个菜单渲染成 null**，按钮 `aria-expanded` 照常翻成 true，看起来就是「点了没反应」。上游源码里那句 `pinning an interaction remains composing that pair directly instead of this row` 说的就是这件事。
+
+**约定**：**禁用一个上游组合行之前，先读它的源码，确认它到底挂载了几样东西，然后把它挂载的每一样都补回来。** 别只看行名字面上的那个包。替换逻辑收在 `src/main/harness/picker-overlay.ts`（无依赖、可单测），`picker-overlay.test.ts` 钉住「后端 + 客户端界面两半都在」这条规则。
+
+**排查手法（下次同类问题直接用）**：
+- 按钮 `aria-expanded` 翻了但 DOM 一点没变 = 菜单渲染成空，几乎一定是某个 slot 没人占。
+- `performance.getEntriesByType('resource')` 里搜 `/plugins/<包名>/client.js` —— 能直接看出某个客户端插件包到底加载没加载。
+- 原生对话框不出现在 `MainWindowTitle` 里，要用 `EnumWindows` 按标题找（我们的选择器窗口标题是 `Select a workspace folder`，窗口类 `#32770`）。
+- **别用 SendKeys 去驱动原生对话框**：前台窗口切换会被系统拦，按键会打到别的应用上。
+
 ## 应用升级（台账 #14 落地，2026-08-23）
 
 - `src/main/updater.ts`：electron-updater + generic feed。**feed 来源**：打包产物里的 `app-update.yml`（由 `electron-builder.yml` 的 `publish` 段生成），可被 `HARNESS_UPDATE_FEED_URL` 运行时覆盖（免重新打包，测试与私有部署都靠它）；`HARNESS_UPDATE_AUTO=0` 关掉自动检查。

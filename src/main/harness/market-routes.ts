@@ -12,7 +12,7 @@ import type { MarketListingResponse } from '@harness-ai/contracts'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
 import { installPlugin, installedPlugins, uninstallPlugin } from './plugin-install'
-import { readQuarantine, releaseQuarantine } from './profile-plugins'
+import { forgetQuarantine, readQuarantine, releaseQuarantine } from './profile-plugins'
 
 const JSON_TYPE = 'application/json'
 
@@ -205,6 +205,8 @@ export function registerMarketRoutes(ctx: Context, options: MarketRouteOptions):
         return
       }
       const result = await uninstallPlugin(options.appRoot, options.profileDir, packageName)
+      // A plugin that is gone must stop being reported as disabled.
+      if (result.ok) forgetQuarantine(options.profileDir, packageName)
       if (!result.ok) {
         send(res, 502, { error: { code: result.code ?? 'uninstall_failed', message: result.detail ?? 'uninstall failed' } })
         return

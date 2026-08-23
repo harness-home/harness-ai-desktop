@@ -143,21 +143,31 @@ export function quarantineBundles(
 }
 
 /**
- * Re-enable a quarantined plugin: clear its record and put it back in the
- * bundle list if it now looks loadable. Used after the user reinstalls it.
+ * Drop the record for a plugin without restoring it — used after the plugin is
+ * uninstalled, so a removed plugin stops being reported as disabled.
+ */
+export function forgetQuarantine(profileDir: string, name: string): void {
+  writeQuarantine(profileDir, readQuarantine(profileDir).filter((entry) => entry.name !== name))
+}
+
+/**
+ * Re-enable a quarantined plugin: put it back in the bundle list and clear its
+ * record, but only once it actually looks loadable again. A failed attempt must
+ * keep the record — dropping it would leave the plugin disabled with nothing on
+ * screen saying so.
  *
  * @returns true when the plugin was restored to the bundle list.
  */
 export function releaseQuarantine(profileDir: string, name: string): boolean {
-  const remaining = readQuarantine(profileDir).filter((entry) => entry.name !== name)
-  writeQuarantine(profileDir, remaining)
   if (inspectBundle(profileDir, name) !== undefined) return false
   const manifest = readManifest(profileDir)
   if (manifest === undefined) return false
   const bundles = manifest.dsh?.profile?.bundles ?? []
-  if (bundles.includes(name)) return true
-  manifest.dsh = { ...manifest.dsh, profile: { ...manifest.dsh?.profile, bundles: [...bundles, name] } }
-  writeManifest(profileDir, manifest)
+  if (!bundles.includes(name)) {
+    manifest.dsh = { ...manifest.dsh, profile: { ...manifest.dsh?.profile, bundles: [...bundles, name] } }
+    writeManifest(profileDir, manifest)
+  }
+  forgetQuarantine(profileDir, name)
   return true
 }
 

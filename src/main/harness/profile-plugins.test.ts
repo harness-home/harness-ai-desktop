@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   auditProfileBundles,
+  forgetQuarantine,
   inspectBundle,
   profileOwnedBundles,
   quarantineBundles,
@@ -181,6 +182,25 @@ describe('releaseQuarantine', () => {
     writeProfile(['dsh-memo'], { 'dsh-memo': '1.0.0' })
     auditProfileBundles(profileDir)
     expect(releaseQuarantine(profileDir, 'dsh-memo')).toBe(false)
+    expect(bundlesOf()).toEqual([])
+  })
+
+  it('keeps the record when the restore is refused, so the plugin stays visible', () => {
+    // Dropping it here would leave the plugin disabled with nothing on screen
+    // saying so — a silently degraded client.
+    writeProfile(['dsh-memo'], { 'dsh-memo': '1.0.0' })
+    auditProfileBundles(profileDir)
+    releaseQuarantine(profileDir, 'dsh-memo')
+    expect(readQuarantine(profileDir).map((entry) => entry.name)).toEqual(['dsh-memo'])
+  })
+})
+
+describe('forgetQuarantine', () => {
+  it('drops the record of a plugin that was uninstalled', () => {
+    writeProfile(['dsh-memo'], { 'dsh-memo': '1.0.0' })
+    auditProfileBundles(profileDir)
+    forgetQuarantine(profileDir, 'dsh-memo')
+    expect(readQuarantine(profileDir)).toEqual([])
     expect(bundlesOf()).toEqual([])
   })
 })

@@ -44,7 +44,12 @@ await build({
   sourcemap: true,
   // TSX with the automatic runtime: react/jsx-runtime is a module-table row.
   jsx: 'automatic',
-  external: ['react', 'react/jsx-runtime', '@deepseek-ai/cordis', '@deepseek-ai/dsh-client-ui-slots'],
+  // Shared browser modules dsh seeds into its client module table: never
+  // inline these — a duplicate react-dom breaks portal unmounting.
+  external: [
+    'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client',
+    '@deepseek-ai/cordis', '@deepseek-ai/dsh-client-ui-slots', '@deepseek-ai/dsh-client-ui-primitives',
+  ],
   banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(pkg.name)}, factory: (require) => {\n${styleInject}\nvar module = { exports: {} }; var exports = module.exports;` },
   footer: { js: 'return module.exports; } });' },
 })

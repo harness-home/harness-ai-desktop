@@ -58,6 +58,9 @@ catalogs:
     '@deepseek-ai/dsh-home-paths':
       specifier: 0.1.1-rc.2
       version: 0.1.1-rc.2
+    '@deepseek-ai/dsh-host-directory-picker':
+      specifier: 0.1.1-rc.2
+      version: 0.1.1-rc.2
     '@deepseek-ai/dsh-host-webserver':
       specifier: 0.1.1-rc.2
       version: 0.1.1-rc.2
@@ -156,6 +159,9 @@ importers:
       '@deepseek-ai/dsh-home-paths':
         specifier: catalog:dsh
         version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-host-directory-picker':
+        specifier: catalog:dsh
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
       '@deepseek-ai/dsh-host-webserver':
         specifier: catalog:dsh
         version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
@@ -207,12 +213,18 @@ importers:
       '@harness-ai/desktop-brand':
         specifier: workspace:*
         version: link:plugins/brand
+      '@harness-ai/desktop-directory-picker':
+        specifier: workspace:*
+        version: link:plugins/electron-directory-picker
       '@harness-ai/desktop-market-ui':
         specifier: workspace:*
         version: link:plugins/market-ui
       '@harness-ai/desktop-windows-pwsh-sandbox':
         specifier: workspace:*
         version: link:plugins/windows-pwsh-sandbox
+      pnpm:
+        specifier: 11.17.0
+        version: 11.17.0
       ws:
         specifier: ^8.18.0
         version: 8.21.3
@@ -276,6 +288,12 @@ importers:
         version: 1.4.0
 
   plugins/brand:
+    devDependencies:
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+
+  plugins/electron-directory-picker:
     devDependencies:
       esbuild:
         specifier: ^0.25.0
@@ -5465,6 +5483,11 @@ packages:
   plist@3.1.0:
     resolution: {integrity: sha512-uysumyrvkUX0rX/dEVqt8gC3sTBzd4zoWfLeS29nb53imdaXVvLINYXTI2GNqzaMuvacNx4uJQ8+b3zXR0pkgQ==}
     engines: {node: '>=10.4.0'}
+
+  pnpm@11.17.0:
+    resolution: {integrity: sha512-zKPOozKtJUu4QUX5ZtGfSHlhUhA0b8kseaBH8joNezzKPDeS8AdrofGDHSd++88KkRmzGppg7Kf7PWIx8zHvcg==}
+    engines: {node: '>=22.13'}
+    hasBin: true
 
   postcss-selector-parser@7.1.5:
     resolution: {integrity: sha512-KvvtD7SrlBP7dlgkBghEE3r84CABm5SmV2aNcG4oCA+qDnJ/tvKonFVvwWAyyWUEwxuNawdfEAZKP9zM3oZ2Uw==}
@@ -11645,6 +11668,8 @@ snapshots:
       '@xmldom/xmldom': 0.8.14
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
+
+  pnpm@11.17.0: {}
 
   postcss-selector-parser@7.1.5:
     dependencies:

@@ -39,6 +39,7 @@
     "@deepseek-ai/dsh-compaction": "catalog:dsh",
     "@deepseek-ai/dsh-fs": "catalog:dsh",
     "@deepseek-ai/dsh-home-paths": "catalog:dsh",
+    "@deepseek-ai/dsh-host-directory-picker": "catalog:dsh",
     "@deepseek-ai/dsh-host-webserver": "catalog:dsh",
     "@deepseek-ai/dsh-invariants": "catalog:dsh",
     "@deepseek-ai/dsh-launch-environment": "catalog:dsh",
@@ -56,8 +57,10 @@
     "@harness-ai/contracts": "link:../harness-ai-packages/contracts",
     "@harness-ai/desktop-account-ui": "workspace:*",
     "@harness-ai/desktop-brand": "workspace:*",
+    "@harness-ai/desktop-directory-picker": "workspace:*",
     "@harness-ai/desktop-market-ui": "workspace:*",
     "@harness-ai/desktop-windows-pwsh-sandbox": "workspace:*",
+    "pnpm": "11.17.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

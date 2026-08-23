@@ -30,9 +30,10 @@ node scripts/smoke.mjs  # 自动化启动冒烟（端点/页面/品牌插件断�
 pnpm run dist:win     # License 闸门 + electron-builder Win x64 NSIS + afterPack 硬校验（关键路径 + 运行时闭包）
 node scripts/smoke-packaged.mjs  # 打包产物冒烟：**先复制到仓库外**再启动（必须，见下）
 pnpm run dsh:version 0.1.2-rc.1  # 一键改全部 dsh catalog 版本（不带参数 = 打印当前版本）
+pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile 插件审计/隔离）
 ```
 
-最低验证：改动后 `pnpm typecheck` 与 `pnpm build` 必须通过；涉及窗口/启动/运行时行为的改动跑 `node scripts/smoke.mjs`。完整验收见 [docs/acceptance.md](docs/acceptance.md)。
+最低验证：改动后 `pnpm typecheck`、`pnpm test` 与 `pnpm build` 必须通过；涉及窗口/启动/运行时行为的改动跑 `node scripts/smoke.mjs`。完整验收见 [docs/acceptance.md](docs/acceptance.md)。
 
 ## dsh 版本管理（根 AGENTS 红线 #2 的落地）
 
@@ -42,6 +43,29 @@ pnpm run dsh:version 0.1.2-rc.1  # 一键改全部 dsh catalog 版本（不带�
 - **打包依赖闭包**：dsh 包把兄弟包声明为 peerDependencies，而 electron-builder 只走 dependencies——凡运行时要用的必须列进本仓库 `dependencies`。afterPack 的闭包校验会挡住遗漏。
 - **打包冒烟必须在仓库外跑**：`dist/win-unpacked` 位于项目内，Node 向上查找会命中开发树 node_modules，缺依赖也能跑起来（真实事故：装到 Program Files 后 loader entries 全崩）。用 `scripts/smoke-packaged.mjs`，它会先复制到临时目录。
 - 框架魔改走三级修改策略（根 AGENTS 红线 #1）；补丁产生时建 `docs/框架补丁清单.md`。
+
+## Profile 插件不得成为承重墙（2026-08-23，真实事故）
+
+**事故**：装在 `D:\Program Files` 的 0.1.0 打包版启动即死，错误是 `failed to import loader entry memo (dsh-memo)`。根因不是插件本身有问题——`dsh-memo` 就在 `~/.dsh/profiles/desktop/node_modules` 里躺着——而是那个构建早于 profile 回退解析器（`module-resolution.ts`），解析不到它；而 Loader 一条 entry 失败，**整棵插件树失败，客户端变砖，只剩堆栈**。市场装一个插件就能把客户端弄死。
+
+**因此（不可回退的约定）**：市场装进 profile 的插件永远是可选项，任何一个坏掉都不能挡住启动。`src/main/harness/profile-plugins.ts` 是这层保险，两道防线：
+
+1. **启动前审计**：`auditProfileBundles()` 逐个检查 profile 自有 bundle（包在不在、manifest 还声不声明 `dsh.bundle.patch`、patch 文件在不在），不合格的从 `dsh.profile.bundles` 摘掉并记进 `harness-quarantine.json`。
+2. **启动失败兜底**：`boot()` 抛错时把**所有** profile 自有插件停用后重启一次（`quarantineBundles(..., 'boot-failed')`）。审计过不了的坏法（插件 import 时自己炸）由这道兜住。
+
+配套约束：
+- **`@deepseek-ai/dsh-*` 模板 bundle 永不隔离**——它们随安装包提供，坏了说明安装包坏了，掩盖只会更难查。
+- **依赖条目保留不动**：只摘 bundle 注册，`dependencies` 留着，用户还能在市场里看到并修/删。
+- **降级必须可见**：`/desktop/market/quarantined` + 市场面板顶部横幅列出被停用的插件与原因。**静默降级等同于 bug**——`releaseQuarantine()` 失败时绝不能顺手删掉记录（踩过：删了之后插件永远停用且界面上什么都不显示）。
+- 改这块必须跑 `src/main/harness/profile-plugins.test.ts`，并至少手工验一次「插件包被挪走 → 客户端照常启动 + 横幅出现」。
+
+## 应用升级（台账 #14 落地，2026-08-23）
+
+- `src/main/updater.ts`：electron-updater + generic feed。**feed 来源**：打包产物里的 `app-update.yml`（由 `electron-builder.yml` 的 `publish` 段生成），可被 `HARNESS_UPDATE_FEED_URL` 运行时覆盖（免重新打包，测试与私有部署都靠它）；`HARNESS_UPDATE_AUTO=0` 关掉自动检查。
+- **口径**：自动下载、**绝不自动安装**——装与不装由用户点（托盘「重启并安装」）或下次真正退出时执行。启动 45s 后首查，之后每 6 小时。
+- **更新链路不能碰运行时**：feed 不可达只写进状态（`phase: 'error'`）并显示在托盘，dsh 侧零影响。托盘那一行既是状态也是操作，不另开菜单项。
+- `electron-builder.yml` 的 `publish.url` 目前是占位域名（分发位置未定，台账 #14/#30）；`dist:win` 带 `--publish never`，本地打包不会真的上传。
+- **验证方式**（已实测）：`-c.directories.output=dist/next` 打一个更高版本 → 静态服务器起 feed → 低版本 `win-unpacked` 带 `HARNESS_UPDATE_FEED_URL` 启动 → 应看到 checking → available → downloading → ready。差分下载会因为 feed 里没有旧版 blockmap 而回落全量，这是预期的。
 
 ## 本仓库红线摘要
 

@@ -12,6 +12,7 @@ import type { MarketListingResponse } from '@harness-ai/contracts'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
 import { installPlugin, installedPlugins, uninstallPlugin } from './plugin-install'
+import { readQuarantine, releaseQuarantine } from './profile-plugins'
 
 const JSON_TYPE = 'application/json'
 
@@ -138,6 +139,32 @@ export function registerMarketRoutes(ctx: Context, options: MarketRouteOptions):
     /** Locally installed plugin packages, so the UI can mark catalog rows. */
     route('/desktop/market/installed', 'GET', async (_req, res) => {
       send(res, 200, { installed: installedPlugins(options.profileDir) })
+    })
+
+    /**
+     * Plugins the shell disabled because they could not load. Surfaced so a
+     * silently degraded client is visible to the user instead of a plugin that
+     * simply stopped working.
+     */
+    route('/desktop/market/quarantined', 'GET', async (_req, res) => {
+      send(res, 200, { entries: readQuarantine(options.profileDir) })
+    })
+
+    /** Clear a quarantine after the user reinstalled or repaired the plugin. */
+    route('/desktop/market/enable', 'POST', async (req, res) => {
+      const payload = JSON.parse(await readBody(req)) as { packageName?: unknown }
+      const packageName = typeof payload.packageName === 'string' ? payload.packageName : ''
+      if (packageName === '') {
+        send(res, 400, { error: { code: 'bad_request', message: 'package name is required' } })
+        return
+      }
+      if (!releaseQuarantine(options.profileDir, packageName)) {
+        send(res, 409, {
+          error: { code: 'still_broken', message: 'the plugin still cannot be loaded; reinstall or remove it' },
+        })
+        return
+      }
+      send(res, 200, { ok: true, restartRequired: true })
     })
 
     route('/desktop/market/install', 'POST', async (req, res) => {

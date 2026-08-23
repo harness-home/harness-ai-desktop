@@ -39,6 +39,23 @@ async function fetchListings(category: MarketCategory | 'all', q: string, instal
   return { status: 'ready', listings: body.listings, categories: body.categories }
 }
 
+interface QuarantineEntry {
+  name: string
+  reason: string
+  at: string
+}
+
+/** Plugins the shell disabled because they could not load. */
+async function fetchQuarantined(): Promise<QuarantineEntry[]> {
+  try {
+    const response = await fetch('/desktop/market/quarantined')
+    if (!response.ok) return []
+    return ((await response.json()) as { entries: QuarantineEntry[] }).entries
+  } catch {
+    return []
+  }
+}
+
 /** One listing by id, for an install offer whose row is not on the current page. */
 async function fetchListing(id: string): Promise<MarketListing | null> {
   try {
@@ -211,6 +228,52 @@ function InstallOffer(props: {
   )
 }
 
+/**
+ * Banner for plugins the shell had to disable. A degraded client must say so:
+ * without this the plugin would just silently stop working.
+ */
+function DisabledPlugins(props: {
+  entries: QuarantineEntry[]
+  busy: string | undefined
+  t: Translate
+  onEnable: (name: string) => void
+  onRemove: (name: string) => void
+}) {
+  const { entries, busy, t, onEnable, onRemove } = props
+  return (
+    <div className="flex flex-col gap-2 border-b border-border bg-amber-500/10 px-6 py-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <CircleAlert className="size-4 text-amber-600" />
+        {t('disabled.title')}
+      </div>
+      <p className="text-sm text-muted-foreground">{t('disabled.body')}</p>
+      <ul className="flex flex-col gap-1.5">
+        {entries.map((entry) => (
+          <li key={entry.name} className="flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-sm">
+              <span className="font-medium text-foreground">{entry.name}</span>
+              <span className="text-muted-foreground">
+                {' · '}
+                {t(`disabled.reason.${entry.reason}` as MarketKey)}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <Button size="sm" variant="outline" disabled={busy === entry.name} onClick={() => onEnable(entry.name)}>
+                {busy === entry.name ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                {t('disabled.enable')}
+              </Button>
+              <Button size="sm" variant="outline" disabled={busy === entry.name} onClick={() => onRemove(entry.name)}>
+                <Trash2 className="size-3.5" />
+                {t('disabled.remove')}
+              </Button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   const { t, onClose } = props
   const [category, setCategory] = useState<MarketCategory | 'all'>('all')
@@ -222,8 +285,12 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   const [message, setMessage] = useState<{ kind: 'error' | 'restart'; text: string } | undefined>(undefined)
   const offeredId = useMarketOffer()
   const [offer, setOffer] = useState<OfferState | undefined>(undefined)
+  const [quarantined, setQuarantined] = useState<QuarantineEntry[]>([])
 
-  const reloadInstalled = useCallback(() => { void fetchInstalled().then(setInstalled) }, [])
+  const reloadInstalled = useCallback(() => {
+    void fetchInstalled().then(setInstalled)
+    void fetchQuarantined().then(setQuarantined)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -317,6 +384,16 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
           {t('installableOnly')}
         </button>
       </div>
+
+      {quarantined.length === 0 ? null : (
+        <DisabledPlugins
+          entries={quarantined}
+          busy={busyId}
+          t={t}
+          onEnable={(name) => { act(name, () => post('enable', { packageName: name })) }}
+          onRemove={(name) => { act(name, () => post('uninstall', { packageName: name })) }}
+        />
+      )}
 
       {offer === undefined ? null : (
         <InstallOffer

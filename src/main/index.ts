@@ -11,6 +11,7 @@ import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { maskSecrets } from './mask-secrets'
 import { createTray, updateTray } from './tray'
+import { disposeUpdater, initUpdater } from './updater'
 
 /** Startup health gate: native mount + renderer load must finish inside this window. */
 const BOOT_TIMEOUT_MS = 30_000
@@ -270,6 +271,9 @@ if (!locked) {
       quit: () => app.quit(),
       accountEmail: () => accountService?.snapshot().email,
     })
+    // Updates are a shell concern, independent of the runtime: a client whose
+    // runtime will not start must still be able to update itself out of it.
+    initUpdater({ onChanged: () => updateTray() })
 
     app.on('activate', () => {
       showMainWindow()
@@ -290,6 +294,7 @@ if (!locked) {
   app.on('will-quit', (event) => {
     if (disposed) return
     disposed = true
+    disposeUpdater()
     hostingBridge?.stop()
     if (adapter === undefined) return
     // Hold the quit until the runtime tree is disposed (flushes session state).

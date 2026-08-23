@@ -8,5 +8,14 @@
   "tray.status.loggedOut": "未登录",
   "tray.status.prefix": "已登录：",
   "tray.open": "打开 Harness AI",
-  "tray.quit": "退出"
+  "tray.quit": "退出",
+  "tray.version": "版本 {version}",
+  "tray.update.check": "检查更新…",
+  "tray.update.checking": "正在检查更新…",
+  "tray.update.available": "正在下载更新 {version}…",
+  "tray.update.downloading": "正在下载更新 {version} — {percent}%",
+  "tray.update.ready": "重启并安装 {version}",
+  "tray.update.error": "检查更新失败，点击重试",
+  "tray.update.unsupported.notPackaged": "开发版不提供更新",
+  "tray.update.unsupported.noFeed": "未配置更新服务器"
 }

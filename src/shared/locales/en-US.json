@@ -8,5 +8,14 @@
   "tray.status.loggedOut": "Not signed in",
   "tray.status.prefix": "Signed in: ",
   "tray.open": "Open Harness AI",
-  "tray.quit": "Quit"
+  "tray.quit": "Quit",
+  "tray.version": "Version {version}",
+  "tray.update.check": "Check for updates…",
+  "tray.update.checking": "Checking for updates…",
+  "tray.update.available": "Downloading update {version}…",
+  "tray.update.downloading": "Downloading update {version} — {percent}%",
+  "tray.update.ready": "Restart and install {version}",
+  "tray.update.error": "Update check failed — retry",
+  "tray.update.unsupported.notPackaged": "Updates unavailable in a development build",
+  "tray.update.unsupported.noFeed": "No update server configured"
 }

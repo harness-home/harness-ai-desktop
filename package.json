@@ -18,7 +18,7 @@
     "build": "node scripts/generate-icon.mjs && pnpm run build:plugins && electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml",
+    "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml --publish never",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "dsh:version": "node scripts/set-dsh-version.mjs"
   },
@@ -61,6 +61,7 @@
     "@harness-ai/desktop-directory-picker": "workspace:*",
     "@harness-ai/desktop-market-ui": "workspace:*",
     "@harness-ai/desktop-windows-pwsh-sandbox": "workspace:*",
+    "electron-updater": "^6.8.9",
     "pnpm": "11.17.0",
     "ws": "^8.18.0"
   },

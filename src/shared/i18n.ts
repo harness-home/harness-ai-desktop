@@ -31,6 +31,14 @@ export function resolveLocale(explicit: string | undefined, systemTags: readonly
   return FALLBACK_LOCALE
 }
 
-export function t(locale: Locale, key: string): string {
-  return MESSAGES[locale][key] ?? MESSAGES[FALLBACK_LOCALE][key] ?? key
+/**
+ * Look up one message, substituting `{name}` placeholders. A missing key falls
+ * back to English and then to the key itself, so a partial translation degrades
+ * to readable text rather than an empty label.
+ */
+export function t(locale: Locale, key: string, params?: Record<string, string | number>): string {
+  const message = MESSAGES[locale][key] ?? MESSAGES[FALLBACK_LOCALE][key] ?? key
+  if (params === undefined) return message
+  return message.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match)
 }

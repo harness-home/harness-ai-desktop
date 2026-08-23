@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { BrowserWindow, Menu, app, ipcMain, shell } from 'electron'
 import type { RecoveryAction } from '../shared/shell-api'
 import { DesktopAccountService } from './account/service'
+import { deepLinkFromArgv, parseDeepLink, registerProtocolClient, type DeepLinkRequest } from './deep-link'
 import type { HarnessAdapter } from './harness/adapter'
 import { createDshAdapter } from './harness/dsh'
 import { startHostingBridge } from './harness/hosting'
@@ -28,6 +29,8 @@ function dshVersion(): string {
     return 'unknown'
   }
 }
+/** Deep link that arrived before the runtime UI could receive it. */
+let pendingDeepLink: DeepLinkRequest | undefined
 let mainWindow: BrowserWindow | undefined
 let harnessBaseUrl: string | undefined
 let bootState: 'starting' | 'ready' | 'failed' = 'starting'
@@ -113,6 +116,34 @@ function showMainWindow(): void {
   }
 }
 
+/**
+ * Hand a deep link to the runtime UI. The market panel decides what to show and
+ * still asks the user to confirm; the main process never installs on its own.
+ * Requests that arrive before the UI is up are queued and flushed on boot.
+ */
+function deliverDeepLink(request: DeepLinkRequest): void {
+  if (request.kind === 'open') return
+  if (bootState !== 'ready' || mainWindow === undefined || mainWindow.isDestroyed()) {
+    pendingDeepLink = request
+    return
+  }
+  pendingDeepLink = undefined
+  log.info(`deep link: offering install of listing ${request.listingId}`)
+  mainWindow.webContents.send('shell:market-install', request.listingId)
+}
+
+/** Parse one incoming deep-link URL, focus the window, and route the request. */
+function handleDeepLink(raw: string | undefined): void {
+  if (raw === undefined) return
+  const request = parseDeepLink(raw)
+  if (request === null) {
+    log.warn('deep link: ignored an unrecognized url')
+    return
+  }
+  showMainWindow()
+  deliverDeepLink(request)
+}
+
 function showFailure(win: BrowserWindow, detail: string): void {
   bootState = 'failed'
   if (win.isDestroyed()) return
@@ -161,6 +192,7 @@ async function startHarness(win: BrowserWindow): Promise<void> {
     if (timedOut) return
     bootState = 'ready'
     log.info('startup health gate passed')
+    if (pendingDeepLink !== undefined) deliverDeepLink(pendingDeepLink)
   } catch (error) {
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
     log.error(`harness startup failed: ${detail}`)
@@ -190,8 +222,16 @@ const locked = app.requestSingleInstanceLock()
 if (!locked) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  // Windows and Linux deliver a deep link as an argument to the second launch.
+  app.on('second-instance', (_event, argv) => {
     showMainWindow()
+    handleDeepLink(deepLinkFromArgv(argv))
+  })
+
+  // macOS delivers it as an event instead, possibly before the app is ready.
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleDeepLink(url)
   })
 
   ipcMain.on('shell:recovery', (event, action: unknown) => {
@@ -219,8 +259,12 @@ if (!locked) {
       appVersion: app.getVersion(),
       onChanged: () => updateTray(),
     })
+    if (registerProtocolClient()) log.info('registered the harness-ai:// protocol client')
+    else log.warn('could not register the harness-ai:// protocol client')
     const win = createWindow()
     void startHarness(win)
+    // A cold start from a link carries it in this process's own arguments.
+    handleDeepLink(deepLinkFromArgv(process.argv))
     createTray({
       showWindow: showMainWindow,
       quit: () => app.quit(),

@@ -8,11 +8,19 @@ export interface HarnessShellApi {
     openLogs(): void
     quit(): void
   }
+  /**
+   * Deep-link delivery, main process to renderer only. The page can subscribe
+   * to install offers; it cannot send anything back through this channel, and
+   * the id it receives still has to be resolved and confirmed like any other.
+   */
+  deepLink: {
+    onInstallOffer(handler: (listingId: string) => void): () => void
+  }
 }
 
 declare global {
   interface Window {
-    /** Present only on the shell's own pages (placeholder / failure surface). */
+    /** Exposed by the shell's preload on every page it loads. */
     harnessShell?: HarnessShellApi
   }
 }

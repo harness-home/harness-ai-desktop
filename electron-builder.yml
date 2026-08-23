@@ -18,6 +18,13 @@ files:
   - package.json
   - THIRD_PARTY_NOTICES.md
 afterPack: ./scripts/verify-packaged.cjs
+# Custom URL scheme: the public website hands a plugin catalog id to the
+# installed client with `harness-ai://install?listing=<id>`. The app also claims
+# the scheme at runtime, so a portable/unpacked run still works.
+protocols:
+  - name: Harness AI
+    schemes:
+      - harness-ai
 win:
   target:
     - target: nsis

@@ -30,6 +30,7 @@ import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './p
 import { registerAccountRoutes } from './account-routes'
 import { registerChromeCss } from './chrome-css'
 import { registerMarketRoutes } from './market-routes'
+import { registerUpdateRoutes } from './update-routes'
 import type { HarnessAdapter, HarnessHandle } from './adapter'
 import { findFreePort } from './port'
 
@@ -176,6 +177,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
           (hostCtx) => {
             hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
             registerChromeCss(hostCtx)
+            registerUpdateRoutes(hostCtx)
             if (options.accountService !== undefined) {
               registerAccountRoutes(hostCtx, options.accountService)
               registerMarketRoutes(hostCtx, {

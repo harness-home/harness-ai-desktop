@@ -17,12 +17,12 @@ import type {
   HostingWatermarksResponse,
   LinkDownFrame,
   LinkUpFrame,
-  RemoteQuestionItem,
 } from '@harness-ai/contracts'
 import { linkDownFrameSchema } from '@harness-ai/contracts'
 import type { DesktopAccountService } from '../account/service'
 import { log } from '../log'
 import { maskSecrets } from '../mask-secrets'
+import { normalizeQuestions } from './questions'
 
 const RETRY_MS = 5_000
 const BATCH_MAX = 200
@@ -354,7 +354,7 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
             type: 'question-pending',
             questionId: frame.rpcId,
             sessionId: payload.sessionId as string,
-            questions: (payload.questions ?? []) as RemoteQuestionItem[],
+            questions: normalizeQuestions(payload.questions),
           })
         }
       } else if (type === 'question/resolved') {

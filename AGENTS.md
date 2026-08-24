@@ -85,3 +85,13 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - `BrowserWindow` 安全默认不得回退：`sandbox: true` + `contextIsolation: true`；外链走系统浏览器。
 - 代码注释、提交信息、日志全英文；UI 文案进 locales 目录，语言解析固定回退 `en-US`（台账 #11）。
 - 凭据不落明文（根红线 #7）。
+
+## 启动诊断与工作区准入（2026-08-25）
+
+装机后启动失败、以及工作区选错位置导致的运行时失败，是两类「用户报障但我们拿不到现场」的问题。三层保险，改动时别拆：
+
+1. **崩溃现场**（`src/main/crash.ts`）：Crashpad 本地采集，**`uploadToServer: false` 不可改**——上报端点是未定项（台账 #25），且转储可能含进程内存片段，没有遥测同意流程之前一律留在用户磁盘。`globalExtra` 带 dsh 版本：升级 dsh 后的崩溃要能和锁定版本对上（根红线 #2）。
+2. **未清退出信号**：`run-marker.json` 存活即表示上次进程没走任何退出路径。`app.exit()` 不触发 `will-quit`，所以**每条主动退出路径都必须走 `exitApp()`**，新增退出点时别直接调 `app.exit()`。
+3. **启动阶段**（`src/main/startup-stage.ts`）：失败页与日志都带阶段名。阶段名是诊断标识符，**保持英文、不翻译**，会被原样引用进日志和报障。`dsh-home`~`webserver-bind` 由适配器上报（根红线 #3：dsh 概念只留在 `src/main/harness/`）。日志里的 timeline 用来定位「哪一段吃掉了 45s 预算」。
+
+**工作区准入**（`src/main/harness/workspace-location.ts`）：判据是**能力探测**（可写 + 支持目录 junction），不是卷类型推断——我们真正依赖的是 NTFS 语义（上游 Windows ACL pwsh 沙箱 + 运行时解析模块用的重解析点），而卷类型只是盒子上的标签，还得为此引 kernel32 FFI。网络共享因为可能挂死所以先按路径字符串直接拦，不进探测。**block 与 confirm 的分界不要随手挪**：不可写/网络共享是确定坏的，无 junction 只是降级（普通对话不受影响），把后者升成 block 会把人锁在自己的文件夹外面。探测目录必须清干净（`.harness-probe-*` 不得留在用户工作区）。

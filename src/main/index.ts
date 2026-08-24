@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { BrowserWindow, Menu, app, ipcMain, shell } from 'electron'
 import type { RecoveryAction } from '../shared/shell-api'
 import { DesktopAccountService } from './account/service'
+import { auditPreviousRun, markCleanExit, startCrashReporting } from './crash'
 import { deepLinkFromArgv, parseDeepLink, registerProtocolClient, type DeepLinkRequest } from './deep-link'
 import type { HarnessAdapter } from './harness/adapter'
 import { createDshAdapter } from './harness/dsh'
@@ -37,6 +38,15 @@ let mainWindow: BrowserWindow | undefined
 let harnessBaseUrl: string | undefined
 let bootState: 'starting' | 'ready' | 'failed' = 'starting'
 let quitting = false
+
+/**
+ * Leave through a known door. `app.exit()` bypasses `will-quit`, so the run
+ * marker has to be cleared here rather than in a teardown hook.
+ */
+function exitApp(code: number): void {
+  markCleanExit()
+  app.exit(code)
+}
 
 /** Origins the window may navigate to: the runtime UI and the dev placeholder server. */
 function allowedOrigins(): string[] {
@@ -159,13 +169,13 @@ async function startHarness(win: BrowserWindow): Promise<void> {
   adapter = createDshAdapter({
     appRoot: app.getAppPath(),
     onExitRequest: (code) => {
-      app.exit(code)
+      exitApp(code)
     },
     accountService,
     requestRestart: () => {
       log.info('restart requested (market profile change)')
       app.relaunch()
-      app.exit(0)
+      exitApp(0)
     },
   })
   let timedOut = false
@@ -209,7 +219,7 @@ function handleRecovery(action: RecoveryAction): void {
     case 'retry':
       log.info('recovery: relaunch requested')
       app.relaunch()
-      app.exit(0)
+      exitApp(0)
       break
     case 'open-logs':
       shell.showItemInFolder(logFilePath())
@@ -250,9 +260,14 @@ if (!locked) {
   // over the runtime surface. Must run before the first window is created.
   Menu.setApplicationMenu(null)
 
+  // Before ready on purpose: a crash during runtime mount is exactly the kind
+  // we cannot otherwise see.
+  startCrashReporting(dshVersion())
+
   app.whenReady().then(() => {
     initFileLog()
     log.info(`shell starting (v${app.getVersion()}, electron ${process.versions.electron})`)
+    auditPreviousRun(dshVersion())
     // Deployment endpoint is still open (ledger #25); default to the local
     // dev server until one exists.
     accountService = new DesktopAccountService({
@@ -289,6 +304,7 @@ if (!locked) {
   // windows actually close on a real quit.
   app.on('before-quit', () => {
     quitting = true
+    markCleanExit()
   })
 
   let disposed = false
@@ -304,7 +320,7 @@ if (!locked) {
       .catch((error: unknown) => {
         log.error(`harness shutdown failed: ${error instanceof Error ? error.message : String(error)}`)
       })
-      .finally(() => app.exit(0))
+      .finally(() => exitApp(0))
   })
 
   process.on('uncaughtException', (error) => {

@@ -14,7 +14,8 @@ import { createTray, updateTray } from './tray'
 import { disposeUpdater, initUpdater } from './updater'
 
 /** Startup health gate: native mount + renderer load must finish inside this window. */
-const BOOT_TIMEOUT_MS = 30_000
+// 45s, not 30: cold starts on slower disks were observed missing 30s by ~1s.
+const BOOT_TIMEOUT_MS = 45_000
 
 let adapter: HarnessAdapter | undefined
 let accountService: DesktopAccountService | undefined

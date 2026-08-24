@@ -22,6 +22,7 @@ import { linkDownFrameSchema } from '@harness-ai/contracts'
 import type { DesktopAccountService } from '../account/service'
 import { log } from '../log'
 import { maskSecrets } from '../mask-secrets'
+import { createAttachmentSync } from './attachment-sync'
 import { normalizeQuestions } from './questions'
 
 const RETRY_MS = 5_000
@@ -144,6 +145,12 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
     return { ...(outcome.text === undefined ? {} : { text: outcome.text }) }
   }
 
+  // Attachment bytes ride their own channel, started only when the deployment
+  // allows it. `HARNESS_SYNC_ATTACHMENTS=0` keeps the pre-P3.5 behaviour:
+  // references sync, bytes stay on this machine.
+  const attachmentsEnabled = process.env.HARNESS_SYNC_ATTACHMENTS !== '0'
+  const attachments = createAttachmentSync({ serverUrl, authHeaders, localRpc })
+
   const refreshHeads = async (): Promise<void> => {
     if (Date.now() - headsRefreshedAt < HEADS_TTL_MS) return
     const value = (await localRpc('session.list', {})) as { items?: SessionListItem[] }
@@ -233,6 +240,9 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
           if (!res.ok) throw new Error(`sync returned ${String(res.status)}`)
           const value = (await res.json()) as HostingSyncResponse
           watermarks.set(sessionId, value.lastSeq)
+          // Only events the server accepted can name an attachment worth
+          // uploading: this point is past the denylist and the 403 quarantine.
+          if (attachmentsEnabled) attachments.note(sessionId, batch)
           if (holes.has(sessionId)) {
             const sent = new Set(batch.map((event) => event.seq))
             const rest = queue.filter((event) => !sent.has(event.seq))
@@ -250,6 +260,9 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
       flushing = false
     }
     if (stopped) return
+    // Bytes go after the transcript, never in front of it: a slow upload must
+    // not delay the messages that reference it.
+    if (attachmentsEnabled && attachments.pending() > 0) void attachments.pump()
     if (retry) {
       setTimeout(() => void flush(), RETRY_MS)
       return
@@ -594,6 +607,7 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
     stop: () => {
       stopped = true
       clearInterval(reconcileTimer)
+      attachments.stop()
       mux?.close()
       link?.close()
     },

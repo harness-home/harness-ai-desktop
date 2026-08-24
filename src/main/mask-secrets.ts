@@ -10,7 +10,13 @@ const NAMED_FIELD = new RegExp(String.raw`\b(${FIELD_NAMES})\b(["']?\s*[:=]\s*["
 const AUTH_HEADER = /\b(Authorization|Cookie|Set-Cookie)\s*:\s*[^\r\n]*/giu
 const BEARER = /\b(Bearer|Basic)\s+[A-Za-z0-9+/._=-]+/giu
 const SK_KEY = /\bsk-[A-Za-z0-9]{12,}/gu
-const LONG_TOKEN = /\b[A-Za-z0-9]{32,}\b/gu
+/**
+ * Bare token-shaped strings, minus content-addressed digests. A `sha256:` id is
+ * an identifier, not a credential: it reveals nothing, and masking it breaks
+ * every lookup keyed by it — attachment sync fetches blobs by exactly this id,
+ * so a masked digest silently loses the image.
+ */
+const LONG_TOKEN = /(?<!\bsha256:)\b[A-Za-z0-9]{32,}\b/gu
 const WEB_URL = /https?:\/\/[^\s<>"']+/giu
 const SENSITIVE_QUERY = /auth|code|credential|key|password|secret|signature|token/iu
 

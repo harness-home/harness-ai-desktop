@@ -354,7 +354,7 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
     if (link?.readyState === WebSocket.OPEN) link.send(JSON.stringify(frame))
   }
 
-  const handleCommand = async (frame: LinkDownFrame): Promise<void> => {
+  const handleCommand = async (frame: LinkDownFrame): Promise<unknown> => {
     if (frame.type === 'approve') {
       const rpcId = approvalRpcIds.get(frame.approvalId)
       if (rpcId === undefined) throw new Error('approval no longer pending')
@@ -389,6 +389,18 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
       })
       const receipt = (await res.json()) as { accepted?: boolean }
       if (receipt.accepted !== true) throw new Error('local respond not accepted')
+    } else if (frame.type === 'create-session') {
+      // Remote "start a task": create the session in the requested workspace,
+      // then queue the first prompt — the same two local calls the desktop
+      // composer makes.
+      const created = (await localRpc('session.create', { cwd: frame.cwd })) as { sessionId?: string }
+      if (typeof created.sessionId !== 'string') throw new Error('session.create returned no id')
+      await localRpc('session.prompt', {
+        sessionId: created.sessionId,
+        mode: 'queue',
+        content: [{ type: 'text', text: frame.text }],
+      })
+      return { sessionId: created.sessionId }
     } else {
       await localRpc('session.prompt', {
         sessionId: frame.sessionId,
@@ -396,6 +408,7 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
         content: [{ type: 'text', text: frame.text }],
       })
     }
+    return undefined
   }
 
   const connectLink = (): void => {
@@ -422,7 +435,12 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
       if (!parsed.success) return
       const frame = parsed.data
       void handleCommand(frame)
-        .then(() => sendLink({ type: 'command-result', commandId: frame.commandId, ok: true }))
+        .then((value) => sendLink({
+          type: 'command-result',
+          commandId: frame.commandId,
+          ok: true,
+          ...(value === undefined ? {} : { value }),
+        }))
         .catch((error: unknown) => sendLink({
           type: 'command-result',
           commandId: frame.commandId,

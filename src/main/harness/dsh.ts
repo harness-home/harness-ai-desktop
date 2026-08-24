@@ -29,6 +29,7 @@ import { enterStage } from '../startup-stage'
 import { BootProfiler, formatBootProfile } from './boot-profile'
 import { installProfileFallbackResolver } from './module-resolution'
 import { directoryPickerOverlays } from './picker-overlay'
+import { recoverIncompleteInstall } from './install-journal'
 import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
 import { registerAccountRoutes } from './account-routes'
 import { registerChromeCss } from './chrome-css'
@@ -143,6 +144,10 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
       enterStage('profile-audit')
       const profileDir = resolveProfileDir(PROFILE_NAME, home)
       initProfile(profileDir, PROFILE_BUNDLES)
+      // An install that never reported completion left the manifest mid-edit;
+      // undo it before anything reads it, or the profile may name a bundle that
+      // was never fully installed.
+      recoverIncompleteInstall(profileDir)
       // A market-installed plugin must never be load-bearing: anything that
       // cannot possibly load is disabled before the Loader sees it.
       auditProfileBundles(profileDir)

@@ -3,14 +3,28 @@
 // dsh's own reconciliation register any package that exports a bundle patch.
 // We never write our own installer or resolver.
 //
-// Supply-chain posture (workspace ledger #21/#22): only packages the market
-// catalog serves can be installed from the UI, the registry is pinned to
-// npmjs, and install-time lifecycle scripts stay blocked by pnpm's default
-// (the profile's pnpm-workspace.yaml has no allowBuilds entries).
+// Supply-chain posture (workspace ledger #21/#22/#27). The runtime cannot
+// contain a plugin — an installed one gets the whole process — so everything
+// protective happens before and around the install:
+//   1. only packages the market catalog serves can be installed from the UI;
+//   2. the registry is pinned to npmjs in three independent places;
+//   3. the pinned version's tarball integrity is re-verified against the
+//      catalog's record, so a republished version is refused (`install-guard`);
+//   4. install-time lifecycle scripts never run — pnpm's default plus an
+//      explicit --ignore-scripts, and a package that needs them is refused
+//      rather than half-installed;
+//   5. every mutation is journaled and rolled back on failure or crash
+//      (`install-journal`), because a profile that names a bundle it cannot
+//      load is a client that will not start;
+//   6. what the package actually reaches for is reported to the person who
+//      installed it (`package-inspect`).
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { log } from '../log'
+import { verifyIntegrity, type PackumentFetcher } from './install-guard'
+import { beginOperation, completeOperation, rollback } from './install-journal'
+import { inspectPackage, type PackageInspection } from './package-inspect'
 
 const INSTALL_TIMEOUT_MS = 180_000
 const REGISTRY = 'https://registry.npmjs.org/'
@@ -21,6 +35,8 @@ export interface InstallResult {
   code?: string
   /** Trimmed pnpm output, useful in the shell log and the error surface. */
   detail?: string
+  /** What the installed package declares and reaches for; present on success. */
+  inspection?: PackageInspection
 }
 
 /**
@@ -101,23 +117,65 @@ function runPnpm(appRoot: string, profileDir: string, args: readonly string[]): 
   })
 }
 
+export interface InstallOptions {
+  /** Tarball integrity the catalog recorded for this exact version. */
+  integrity: string | null
+  /** Registry lookup override, for tests. */
+  fetcher?: PackumentFetcher
+}
+
 /** Install one catalog package into the desktop profile. */
 export async function installPlugin(
   appRoot: string,
   profileDir: string,
   packageName: string,
   version: string | null,
+  options: InstallOptions,
 ): Promise<InstallResult> {
+  if (version === null || version === '') {
+    // Without a pinned version there is nothing to verify an artifact against,
+    // and "latest" would mean installing whatever the registry serves today.
+    return { ok: false, code: 'version_unpinned', detail: 'the catalog pins no version for this package' }
+  }
+  const spec = `${packageName}@${version}`
+
+  const verdict = await verifyIntegrity(packageName, version, options.integrity, options.fetcher)
+  if (!verdict.ok) {
+    log.warn(`market: refusing ${spec} (${verdict.code}): ${verdict.detail}`)
+    return { ok: false, code: verdict.code, detail: verdict.detail }
+  }
+
   ensureProfileSettings(profileDir)
-  const spec = version === null || version === '' ? packageName : `${packageName}@${version}`
+  const journaled = beginOperation(profileDir, 'install', packageName, version)
   log.info(`market: installing ${spec} into ${profileDir}`)
-  const result = await runPnpm(appRoot, profileDir, ['add', spec, '--registry', REGISTRY])
+  // --ignore-scripts is redundant with the profile having no allowBuilds
+  // entries, and stated anyway: this is the one policy that must not depend on
+  // a settings file staying the way we wrote it.
+  const result = await runPnpm(appRoot, profileDir, ['add', spec, '--registry', REGISTRY, '--ignore-scripts'])
   if (!result.ok) {
     log.warn(`market: install of ${spec} failed (${result.code ?? 'unknown'})`)
+    if (journaled) rollback(profileDir)
     return result
   }
+
+  const inspection = inspectPackage(join(profileDir, 'node_modules', ...packageName.split('/')))
+  if (inspection.installScripts.length > 0) {
+    // The scripts were never run, so the package is not in the state it expects
+    // to be in. Keeping it would leave something half-installed that looks fine.
+    log.warn(`market: ${spec} needs install scripts (${inspection.installScripts.join(', ')}); removing it`)
+    await runPnpm(appRoot, profileDir, ['remove', packageName])
+    if (journaled) rollback(profileDir)
+    else reconcileProfileBundles(profileDir)
+    return {
+      ok: false,
+      code: 'install_scripts_required',
+      detail: `this package runs code at install time (${inspection.installScripts.join(', ')}), which is not allowed`,
+    }
+  }
+
   reconcileProfileBundles(profileDir)
-  return result
+  if (journaled) completeOperation(profileDir)
+  return { ...result, inspection }
 }
 
 /** Remove one installed plugin from the desktop profile. */
@@ -127,8 +185,14 @@ export async function uninstallPlugin(
   packageName: string,
 ): Promise<InstallResult> {
   log.info(`market: removing ${packageName} from ${profileDir}`)
+  const journaled = beginOperation(profileDir, 'uninstall', packageName, null)
   const result = await runPnpm(appRoot, profileDir, ['remove', packageName])
-  if (result.ok) reconcileProfileBundles(profileDir)
+  if (!result.ok) {
+    if (journaled) rollback(profileDir)
+    return result
+  }
+  reconcileProfileBundles(profileDir)
+  if (journaled) completeOperation(profileDir)
   return result
 }
 

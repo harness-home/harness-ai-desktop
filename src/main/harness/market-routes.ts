@@ -189,12 +189,27 @@ export function registerMarketRoutes(ctx: Context, options: MarketRouteOptions):
         send(res, 400, { error: { code: 'preset_bundled', message: 'preset plugins ship with the app' } })
         return
       }
-      const result = await installPlugin(options.appRoot, options.profileDir, view.packageName, view.version)
+      // The catalog's own installable flag already accounts for moderation and
+      // for install-time scripts; re-checking it here means a client that has
+      // the listing cannot route around the catalog's decision.
+      if (!view.installable) {
+        send(res, 400, { error: { code: 'not_installable', message: 'the catalog does not allow installing this listing' } })
+        return
+      }
+      const result = await installPlugin(options.appRoot, options.profileDir, view.packageName, view.version, {
+        integrity: view.integrity,
+      })
       if (!result.ok) {
         send(res, 502, { error: { code: result.code ?? 'install_failed', message: result.detail ?? 'install failed' } })
         return
       }
-      send(res, 200, { ok: true, restartRequired: true })
+      // The capabilities go back with the receipt: the moment right after
+      // installing is when someone can still act on them.
+      send(res, 200, {
+        ok: true,
+        restartRequired: true,
+        ...(result.inspection === undefined ? {} : { inspection: result.inspection }),
+      })
     })
 
     route('/desktop/market/uninstall', 'POST', async (req, res) => {

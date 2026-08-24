@@ -20,7 +20,8 @@
     "test": "vitest run",
     "dist:win": "pnpm run build && node scripts/gen-notices.mjs && electron-builder --win --config electron-builder.yml --publish never",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
-    "dsh:version": "node scripts/set-dsh-version.mjs"
+    "dsh:version": "node scripts/set-dsh-version.mjs",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "catalog:cordis",

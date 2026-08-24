@@ -34,7 +34,8 @@ interface SessionListItem {
   updatedAt: number
   running: boolean
   cwd?: string
-  title?: string
+  /** Titles live in the list projections, not as a top-level field. */
+  projections?: { values?: { title?: unknown } }
 }
 
 export interface HostingBridgeOptions {
@@ -76,6 +77,8 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
   /** Pending upload queue per session; watermark = highest seq the server holds. */
   const queues = new Map<string, HostedEvent[]>()
   const watermarks = new Map<string, number>()
+  /** Sessions where the server has interior holes: send without the seq filter. */
+  const holes = new Set<string>()
   const denied = new Set<string>()
   const heads = new Map<string, SessionListItem>()
   /** approvalId → local mux rpcId (needed to answer /api/respond). */
@@ -108,20 +111,28 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
     return json.result.value
   }
 
+  // Heads are re-read at most once per TTL: every flush wants fresh
+  // running/title/updatedAt (a stale head freezes the phone's session list),
+  // but streaming turns flush per event batch and must not hammer the RPC.
+  const HEADS_TTL_MS = 2_000
+  let headsRefreshedAt = 0
   const refreshHeads = async (): Promise<void> => {
+    if (Date.now() - headsRefreshedAt < HEADS_TTL_MS) return
     const value = (await localRpc('session.list', {})) as { items?: SessionListItem[] }
+    headsRefreshedAt = Date.now()
     for (const item of value.items ?? []) heads.set(item.sessionId, item)
   }
 
   const headFor = (sessionId: string): HostedSessionHead | undefined => {
     const item = heads.get(sessionId)
     if (item === undefined) return undefined
+    const title = item.projections?.values?.title
     return {
       sessionId,
       harnessType: 'dsh',
       harnessFormatVersion: options.harnessFormatVersion,
       cwd: item.cwd ?? '',
-      title: item.title ?? null,
+      title: typeof title === 'string' && title !== '' ? title : null,
       running: item.running,
       updatedAt: new Date(item.updatedAt).toISOString(),
     }
@@ -141,12 +152,15 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
   const flush = async (): Promise<void> => {
     if (flushing || stopped) return
     flushing = true
+    // One session's failure must not starve the others: errors are caught
+    // per session and only schedule a retry, never abort the whole round.
+    let retry = false
     try {
       const headers = authHeaders()
       if (headers === undefined) return
+      await refreshHeads().catch(() => {})
       for (const [sessionId, queue] of queues) {
         if (queue.length === 0) continue
-        if (!heads.has(sessionId)) await refreshHeads().catch(() => {})
         const head = headFor(sessionId)
         if (head === undefined) continue
         if (head.cwd !== '' && cwdDenied(head.cwd, extraDenylist)) {
@@ -156,32 +170,67 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
           continue
         }
         const watermark = watermarks.get(sessionId) ?? -1
-        const batch = queue.filter((event) => event.seq > watermark).slice(0, BATCH_MAX)
+        // Hole repair resends the full queue: the server upserts by
+        // (sessionId, seq), so re-sending stored events is a no-op there,
+        // while the watermark filter would silently drop the missing ones.
+        const batch = (holes.has(sessionId)
+          ? queue
+          : queue.filter((event) => event.seq > watermark)
+        ).slice(0, BATCH_MAX)
         if (batch.length === 0) {
           queues.set(sessionId, [])
+          holes.delete(sessionId)
           continue
         }
-        const res = await fetch(`${serverUrl}/api/hosting/sessions/${sessionId}/sync`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            head,
-            events: batch,
-            ...(options.dropChunks === true ? { lossy: true } : {}),
-          }),
-          signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`sync returned ${String(res.status)}`)
-        const value = (await res.json()) as HostingSyncResponse
-        watermarks.set(sessionId, value.lastSeq)
-        queues.set(sessionId, queue.filter((event) => event.seq > value.lastSeq))
+        try {
+          const res = await fetch(`${serverUrl}/api/hosting/sessions/${sessionId}/sync`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              head,
+              events: batch,
+              ...(options.dropChunks === true ? { lossy: true } : {}),
+            }),
+            signal: AbortSignal.timeout(15_000),
+          })
+          if (res.status === 403) {
+            // The server owns this session under another account (or denies
+            // this device). Retrying can never succeed and used to wedge the
+            // whole queue — quarantine the session for this run instead.
+            denied.add(sessionId)
+            queues.delete(sessionId)
+            log.warn(`hosting: session ${sessionId} rejected by server (403); not synced this run`)
+            continue
+          }
+          if (!res.ok) throw new Error(`sync returned ${String(res.status)}`)
+          const value = (await res.json()) as HostingSyncResponse
+          watermarks.set(sessionId, value.lastSeq)
+          if (holes.has(sessionId)) {
+            const sent = new Set(batch.map((event) => event.seq))
+            const rest = queue.filter((event) => !sent.has(event.seq))
+            queues.set(sessionId, rest)
+            if (rest.length === 0) holes.delete(sessionId)
+          } else {
+            queues.set(sessionId, queue.filter((event) => event.seq > value.lastSeq))
+          }
+        } catch (error) {
+          retry = true
+          log.warn(`hosting: sync deferred for ${sessionId}: ${error instanceof Error ? error.message : String(error)}`)
+        }
       }
-    } catch (error) {
-      log.warn(`hosting: sync deferred: ${error instanceof Error ? error.message : String(error)}`)
-      setTimeout(() => void flush(), RETRY_MS)
     } finally {
       flushing = false
     }
+    if (stopped) return
+    if (retry) {
+      setTimeout(() => void flush(), RETRY_MS)
+      return
+    }
+    // Events enqueued while this round was in flight found flushing=true and
+    // returned without scheduling anything — without this tail check the last
+    // events of a turn sit in the queue until the next user action.
+    const pending = [...queues.values()].some((queue) => queue.length > 0)
+    if (pending) void flush()
   }
 
   /** Backfill one session's server gap from local history (pages backwards). */
@@ -214,9 +263,21 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
     if (!res.ok) return
     const value = (await res.json()) as HostingWatermarksResponse
     for (const [sessionId, seq] of Object.entries(value.watermarks)) watermarks.set(sessionId, seq)
-    // Catch up every locally known session the server is behind on.
+    // Catch up every locally known session the server is behind on. A count
+    // below lastSeq+1 means interior events are missing server-side (the
+    // watermark is a max, not a contiguous high-water mark) — re-send the
+    // whole history for that session, bypassing the seq filter.
     for (const sessionId of heads.keys()) {
-      const since = watermarks.get(sessionId) ?? -1
+      const seq = watermarks.get(sessionId) ?? -1
+      const count = value.counts?.[sessionId]
+      // dropChunks legitimately leaves the server with fewer rows than
+      // lastSeq+1, so gap detection only applies to full-fidelity sync.
+      const holed = options.dropChunks !== true && count !== undefined && seq >= 0 && count < seq + 1
+      if (holed && !denied.has(sessionId)) {
+        log.warn(`hosting: session ${sessionId} has server-side gaps (${String(count)}/${String(seq + 1)}); repairing`)
+        holes.add(sessionId)
+      }
+      const since = holed ? -1 : seq
       await backfill(sessionId, since).catch((error: unknown) => {
         log.warn(`hosting: backfill ${sessionId} failed: ${error instanceof Error ? error.message : String(error)}`)
       })
@@ -260,6 +321,9 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
       }
     })
     mux.on('close', () => {
+      // Events emitted while the mux is down are gone from this stream; the
+      // periodic reconcile below is what backfills the resulting server gap.
+      log.warn('hosting: local mux disconnected; reconnecting')
       if (!stopped) setTimeout(connectMux, RETRY_MS)
     })
     mux.on('error', () => { mux?.close() })
@@ -339,9 +403,18 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
   connectMux()
   connectLink()
 
+  // Startup-only reconcile proved insufficient in linkage testing: any event
+  // missed over the mux (disconnect, slow consumer) left the server behind
+  // until the next app restart. A slow periodic sweep closes those gaps.
+  const RECONCILE_MS = 60_000
+  const reconcileTimer = setInterval(() => {
+    void reconcile().catch(() => {})
+  }, RECONCILE_MS)
+
   return {
     stop: () => {
       stopped = true
+      clearInterval(reconcileTimer)
       mux?.close()
       link?.close()
     },

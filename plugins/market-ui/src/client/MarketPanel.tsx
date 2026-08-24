@@ -2,9 +2,12 @@
 // desktop profile, remove it again, and restart to load it. Installation runs
 // in the main process through the bundled pnpm (see market-routes.ts); this
 // page only ever names a catalog listing id.
-import type { MarketCategory, MarketListing, MarketListingResponse, MarketListResponse } from '@harness-ai/contracts'
+import type {
+  MarketCategory, MarketListing, MarketListingResponse, MarketListResponse, MarketRiskFlag,
+} from '@harness-ai/contracts'
 import {
-  CheckCircle2, CircleAlert, Download, ExternalLink, LoaderCircle, PackageCheck, RefreshCw, Search, Trash2, X,
+  CheckCircle2, CircleAlert, Download, ExternalLink, LoaderCircle, PackageCheck, RefreshCw, Search, ShieldAlert,
+  Trash2, X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MarketKey } from './locales.ts'
@@ -77,19 +80,122 @@ async function fetchInstalled(): Promise<Record<string, string>> {
   }
 }
 
-async function post(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; message?: string }> {
+/** What the main process reports about a package it just installed. */
+interface Inspection {
+  installScripts: string[]
+  capabilities: string[]
+  filesScanned: number
+  truncated: boolean
+}
+
+interface ActionResult {
+  ok: boolean
+  message?: string
+  inspection?: Inspection
+}
+
+async function post(path: string, body: Record<string, unknown>): Promise<ActionResult> {
   try {
     const response = await fetch(`/desktop/market/${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    const json = (await response.json()) as { ok?: boolean; error?: { code: string; message: string } }
+    const json = (await response.json()) as {
+      ok?: boolean
+      inspection?: Inspection
+      error?: { code: string; message: string }
+    }
     if (!response.ok) return { ok: false, message: json.error?.message ?? json.error?.code ?? 'failed' }
-    return { ok: true }
+    return { ok: true, ...(json.inspection === undefined ? {} : { inspection: json.inspection }) }
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'failed' }
   }
+}
+
+/**
+ * Registry observations about a listing. Amber rather than red on purpose:
+ * these are things to know, not accusations — a plugin with few downloads is
+ * usually just new.
+ */
+function RiskChips(props: { flags: MarketRiskFlag[]; t: Translate }) {
+  const { flags, t } = props
+  if (flags.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1">
+      {flags.map((flag) => (
+        <span
+          key={flag}
+          title={t(`risk.${flag}.detail` as MarketKey)}
+          className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-700 dark:text-amber-400"
+        >
+          {t(`risk.${flag}` as MarketKey)}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The gate in front of every install.
+ *
+ * It exists because the runtime cannot contain a plugin: once installed, it
+ * runs with everything this process has. That is not a detail to bury, so the
+ * consent step states it and lists what the registry says about the package.
+ */
+function InstallConfirm(props: {
+  listing: MarketListing
+  busy: boolean
+  t: Translate
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const { listing, busy, t, onConfirm, onCancel } = props
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-6">
+      <div className="flex w-full max-w-lg flex-col gap-4 rounded-xl border border-border bg-background p-6 shadow-lg">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-600" />
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-foreground">{t('confirm.title')}</h3>
+            <p className="mt-0.5 truncate font-mono text-[12px] text-muted-foreground">
+              {listing.packageName}
+              {listing.version === null ? '' : `@${listing.version}`}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm leading-relaxed text-muted-foreground">{t('confirm.body')}</p>
+
+        {listing.riskFlags.length === 0 ? null : (
+          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+            <span className="text-xs font-medium text-foreground">{t('confirm.observations')}</span>
+            <ul className="flex flex-col gap-1.5">
+              {listing.riskFlags.map((flag) => (
+                <li key={flag} className="text-xs leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">{t(`risk.${flag}` as MarketKey)}</span>
+                  {' — '}
+                  {t(`risk.${flag}.detail` as MarketKey)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {listing.reviewStatus === 'allowed' ? t('confirm.reviewed') : t('confirm.unreviewed')}
+        </p>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onCancel}>{t('confirm.cancel')}</Button>
+          <Button size="sm" disabled={busy} onClick={onConfirm}>
+            {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {t('confirm.install')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ListingCard(props: {
@@ -130,6 +236,8 @@ function ListingCard(props: {
       </div>
 
       <p className="line-clamp-3 min-h-[3.4em] text-sm leading-relaxed text-muted-foreground">{listing.description}</p>
+
+      <RiskChips flags={listing.riskFlags} t={t} />
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
         <span className="truncate">
@@ -286,6 +394,8 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
   const offeredId = useMarketOffer()
   const [offer, setOffer] = useState<OfferState | undefined>(undefined)
   const [quarantined, setQuarantined] = useState<QuarantineEntry[]>([])
+  /** Listing awaiting the consent gate; installs only start from there. */
+  const [pending, setPending] = useState<MarketListing | undefined>(undefined)
 
   const reloadInstalled = useCallback(() => {
     void fetchInstalled().then(setInstalled)
@@ -328,17 +438,30 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
 
   const categories = useMemo<(MarketCategory | 'all')[]>(() => ['all', ...state.categories], [state.categories])
 
-  const act = (id: string, run: () => Promise<{ ok: boolean; message?: string }>): void => {
+  const act = (id: string, run: () => Promise<ActionResult>): void => {
     setBusyId(id)
     setMessage(undefined)
     void run().then((result) => {
-      if (result.ok) {
-        reloadInstalled()
-        setMessage({ kind: 'restart', text: t('restartHint') })
-      } else {
+      if (!result.ok) {
         setMessage({ kind: 'error', text: result.message ?? t('actionFailed') })
+        return
       }
+      reloadInstalled()
+      // Right after installing is the moment someone can still act on what the
+      // package turned out to reach for, so it goes in the receipt.
+      const capabilities = result.inspection?.capabilities ?? []
+      const summary = capabilities.length === 0
+        ? t('restartHint')
+        : `${t('restartHint')} ${t('capabilitiesSeen')}: ${
+          capabilities.map((c) => t(`capability.${c}` as MarketKey)).join(', ')}`
+      setMessage({ kind: 'restart', text: summary })
     }).finally(() => setBusyId(undefined))
+  }
+
+  /** Every install path funnels through the same consent gate. */
+  const requestInstall = (listing: MarketListing): void => {
+    setMessage(undefined)
+    setPending(listing)
   }
 
   return (
@@ -401,7 +524,7 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
           busy={offer.status === 'ready' && busyId === offer.listing.id}
           t={t}
           onConfirm={(listing) => {
-            act(listing.id, () => post('install', { id: listing.id }))
+            requestInstall(listing)
             dismissMarketOffer()
           }}
           onDismiss={dismissMarketOffer}
@@ -443,13 +566,26 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
                 installedVersion={listing.packageName === null ? undefined : installed[listing.packageName]}
                 busy={busyId === listing.id}
                 t={t}
-                onInstall={() => act(listing.id, () => post('install', { id: listing.id }))}
+                onInstall={() => requestInstall(listing)}
                 onUninstall={() => act(listing.id, () => post('uninstall', { packageName: listing.packageName }))}
               />
             ))}
           </div>
         )}
       </div>
+
+      {pending === undefined ? null : (
+        <InstallConfirm
+          listing={pending}
+          busy={busyId === pending.id}
+          t={t}
+          onConfirm={() => {
+            act(pending.id, () => post('install', { id: pending.id }))
+            setPending(undefined)
+          }}
+          onCancel={() => setPending(undefined)}
+        />
+      )}
     </div>
   )
 }

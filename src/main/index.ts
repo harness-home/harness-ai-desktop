@@ -10,15 +10,15 @@ import { createDshAdapter } from './harness/dsh'
 import { startHostingBridge } from './harness/hosting'
 import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
+import { createBootWatchdog } from './boot-watchdog'
 import { maskSecrets } from './mask-secrets'
 import { currentStage, enterStage, setStageLogger, startupTimeline } from './startup-stage'
 import { createTray, updateTray } from './tray'
 import { disposeUpdater, initUpdater } from './updater'
 
-/** Startup health gate: native mount + renderer load must finish inside this window. */
-// 45s, not 30: cold starts on slower disks were observed missing 30s by ~1s.
-const BOOT_TIMEOUT_MS = 45_000
 
+/** Health gate for the boot in flight; stage transitions tick it too. */
+let bootGate: { progress: (label?: string) => void } | undefined
 let adapter: HarnessAdapter | undefined
 let accountService: DesktopAccountService | undefined
 let hostingBridge: { stop: () => void } | undefined
@@ -171,6 +171,14 @@ function showFailure(win: BrowserWindow, detail: string): void {
 
 async function startHarness(win: BrowserWindow): Promise<void> {
   installNodeSpawnShim()
+  // The gate watches for a lack of progress rather than for elapsed time; see
+  // boot-watchdog.ts for why a flat budget could not be set correctly.
+  const gate = createBootWatchdog({
+    onTimeout: (reason) => {
+      log.error(`startup health gate tripped: ${reason}`)
+      showFailure(win, `The runtime did not become healthy: ${reason}.`)
+    },
+  })
   adapter = createDshAdapter({
     appRoot: app.getAppPath(),
     onExitRequest: (code) => {
@@ -182,13 +190,9 @@ async function startHarness(win: BrowserWindow): Promise<void> {
       app.relaunch()
       exitApp(0)
     },
+    onProgress: (label) => gate.progress(label),
   })
-  let timedOut = false
-  const timeout = setTimeout(() => {
-    timedOut = true
-    log.error(`startup health gate timed out after ${String(BOOT_TIMEOUT_MS)}ms`)
-    showFailure(win, `The runtime did not become healthy within ${String(BOOT_TIMEOUT_MS / 1000)}s.`)
-  }, BOOT_TIMEOUT_MS)
+  bootGate = gate
   try {
     // Gate 1: native mount — the plugin tree settled and the web server bound.
     const handle = await adapter.start()
@@ -203,12 +207,12 @@ async function startHarness(win: BrowserWindow): Promise<void> {
         dropChunks: process.env.HARNESS_SYNC_DROP_CHUNKS === '1',
       })
     }
-    if (timedOut || win.isDestroyed()) return
+    if (gate.tripped() || win.isDestroyed()) return
     enterStage('renderer-load')
     // Gate 2: renderer report — loadURL resolves on did-finish-load and
     // rejects on did-fail-load, so an unreachable or crashing page fails loud.
     await win.loadURL(handle.baseUrl)
-    if (timedOut) return
+    if (gate.tripped()) return
     enterStage('ready')
     bootState = 'ready'
     log.info(`startup health gate passed; timeline: ${startupTimeline()}`)
@@ -216,9 +220,10 @@ async function startHarness(win: BrowserWindow): Promise<void> {
   } catch (error) {
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
     log.error(`harness startup failed: ${detail}`)
-    if (!timedOut && !quitting) showFailure(win, detail)
+    if (!gate.tripped() && !quitting) showFailure(win, detail)
   } finally {
-    clearTimeout(timeout)
+    gate.stop()
+    bootGate = undefined
   }
 }
 
@@ -274,7 +279,12 @@ if (!locked) {
 
   app.whenReady().then(() => {
     initFileLog()
-    setStageLogger(log.info)
+    // A stage change is progress too — and the only progress signal during
+    // profile-audit, which has no runtime fibers to report yet.
+    setStageLogger((line) => {
+      log.info(line)
+      bootGate?.progress(currentStage())
+    })
     enterStage('app-ready')
     log.info(`shell starting (v${app.getVersion()}, electron ${process.versions.electron})`)
     auditPreviousRun(dshVersion())

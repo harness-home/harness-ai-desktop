@@ -81,8 +81,8 @@ export function currentStage(): StartupStage | undefined {
  * Compact per-stage timing for one log line, e.g.
  * `app-ready +0ms > runtime-boot +2140ms`.
  *
- * The 45s health gate exists because cold starts on slow disks were missing a
- * 30s one; when it trips again, this says which stage ate the budget.
+ * When the health gate trips, this says which stage went quiet — the gate
+ * reports that progress stopped, and this says where.
  *
  * @returns the timeline, or `'(none)'` when no stage was entered.
  */

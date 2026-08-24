@@ -125,6 +125,12 @@ export interface DshAdapterOptions {
   accountService?: DesktopAccountService
   /** Restart the shell (used after a market install changes the profile). */
   requestRestart: () => void
+  /**
+   * Called whenever the runtime reports forward motion. The plugin tree emits
+   * one lifecycle event per fiber, which is the only progress signal available
+   * during the long single stage that mounts it.
+   */
+  onProgress?: (label: string) => void
 }
 
 export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
@@ -184,7 +190,10 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
           rootConfig,
           patches,
           (hostCtx) => {
-            hostCtx.on('internal/status', (fiber, oldState) => { profiler.record(fiber, oldState) })
+            hostCtx.on('internal/status', (fiber, oldState) => {
+              profiler.record(fiber, oldState)
+              options.onProgress?.(fiber.runtime?.name ?? 'runtime-boot')
+            })
             hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
             registerChromeCss(hostCtx)
             registerUpdateRoutes(hostCtx)

@@ -23,6 +23,11 @@
       p {
         opacity: 0.7;
       }
+      .stage {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        opacity: 0.55;
+      }
       pre {
         text-align: left;
         max-height: 200px;
@@ -61,6 +66,7 @@
     <main>
       <h1 id="title"></h1>
       <p id="status"></p>
+      <p id="stage" class="stage" hidden></p>
       <pre id="detail" hidden></pre>
       <div id="actions" class="actions">
         <button id="retry"></button>

@@ -11,6 +11,7 @@ import { startHostingBridge } from './harness/hosting'
 import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { maskSecrets } from './mask-secrets'
+import { currentStage, enterStage, setStageLogger, startupTimeline } from './startup-stage'
 import { createTray, updateTray } from './tray'
 import { disposeUpdater, initUpdater } from './updater'
 
@@ -158,10 +159,14 @@ function handleDeepLink(raw: string | undefined): void {
 
 function showFailure(win: BrowserWindow, detail: string): void {
   bootState = 'failed'
+  // The stage narrows the search before anyone opens the log, and the timeline
+  // says whether a stage hung or failed outright.
+  const stage = currentStage() ?? 'unknown'
+  log.error(`startup failed at stage ${stage}; timeline: ${startupTimeline()}`)
   if (win.isDestroyed()) return
   // The failure surface must render even when the runtime is down: it is the
   // local placeholder page with recovery actions, never a remote URL.
-  loadShellPage(win, { state: 'failed', detail: maskSecrets(detail).slice(0, 2000) })
+  loadShellPage(win, { state: 'failed', stage, detail: maskSecrets(detail).slice(0, 2000) })
 }
 
 async function startHarness(win: BrowserWindow): Promise<void> {
@@ -190,6 +195,7 @@ async function startHarness(win: BrowserWindow): Promise<void> {
     harnessBaseUrl = handle.baseUrl
     log.info(`harness runtime at ${handle.baseUrl}`)
     if (accountService !== undefined) {
+      enterStage('hosting-bridge')
       hostingBridge = startHostingBridge({
         localBaseUrl: handle.baseUrl,
         account: accountService,
@@ -198,12 +204,14 @@ async function startHarness(win: BrowserWindow): Promise<void> {
       })
     }
     if (timedOut || win.isDestroyed()) return
+    enterStage('renderer-load')
     // Gate 2: renderer report — loadURL resolves on did-finish-load and
     // rejects on did-fail-load, so an unreachable or crashing page fails loud.
     await win.loadURL(handle.baseUrl)
     if (timedOut) return
+    enterStage('ready')
     bootState = 'ready'
-    log.info('startup health gate passed')
+    log.info(`startup health gate passed; timeline: ${startupTimeline()}`)
     if (pendingDeepLink !== undefined) deliverDeepLink(pendingDeepLink)
   } catch (error) {
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
@@ -266,6 +274,8 @@ if (!locked) {
 
   app.whenReady().then(() => {
     initFileLog()
+    setStageLogger(log.info)
+    enterStage('app-ready')
     log.info(`shell starting (v${app.getVersion()}, electron ${process.versions.electron})`)
     auditPreviousRun(dshVersion())
     // Deployment endpoint is still open (ledger #25); default to the local
@@ -278,6 +288,7 @@ if (!locked) {
     })
     if (registerProtocolClient()) log.info('registered the harness-ai:// protocol client')
     else log.warn('could not register the harness-ai:// protocol client')
+    enterStage('window-create')
     const win = createWindow()
     void startHarness(win)
     // A cold start from a link carries it in this process's own arguments.

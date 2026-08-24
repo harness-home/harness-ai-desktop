@@ -25,6 +25,7 @@ import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
 import { log } from '../log'
+import { enterStage } from '../startup-stage'
 import { installProfileFallbackResolver } from './module-resolution'
 import { directoryPickerOverlays } from './picker-overlay'
 import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
@@ -131,12 +132,14 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
 
   return {
     async start(): Promise<HarnessHandle> {
+      enterStage('dsh-home')
       const installAnchor = join(options.appRoot, 'package.json')
       const home = resolveDshHome()
       // Only the home .env layer applies: a desktop launch has no meaningful
       // invoking directory, unlike the CLI.
       const environment = loadLayeredEnv(BIN_NAME, home)
       healProfilesModuleFallback(installAnchor, home)
+      enterStage('profile-audit')
       const profileDir = resolveProfileDir(PROFILE_NAME, home)
       initProfile(profileDir, PROFILE_BUNDLES)
       // A market-installed plugin must never be load-bearing: anything that
@@ -144,6 +147,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
       auditProfileBundles(profileDir)
 
       const attempt = async (): Promise<HarnessHandle> => {
+        enterStage('profile-compose')
         const profile = loadProfile(BIN_NAME, PROFILE_NAME, installAnchor, home)
         const rootConfig = join(profile.dir, PROFILE_ROOT_FILENAME)
         writeFileSync(rootConfig, PROFILE_ROOT_CONFIG)
@@ -164,6 +168,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
         releaseResolver?.()
         releaseResolver = installProfileFallbackResolver(profile.dir)
         const port = await findFreePort()
+        enterStage('runtime-boot')
         ctx = await boot(
           BIN_NAME,
           rootConfig,
@@ -196,6 +201,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
           await ctx.fiber.dispose()
           throw new Error(`${BIN_NAME}: harness runtime was stopped during startup`)
         }
+        enterStage('webserver-bind')
         const webServer = ctx.get('webServer')
         if (webServer === undefined) {
           throw new Error(`${BIN_NAME}: harness runtime settled without a web server`)

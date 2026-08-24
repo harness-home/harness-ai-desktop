@@ -17,6 +17,14 @@ set('title', t(locale, 'shell.placeholder.title'))
 
 if (failed) {
   set('status', t(locale, 'shell.failed.hint'))
+  // Diagnostic identifier, deliberately untranslated: it is quoted verbatim in
+  // logs and support reports.
+  const stage = params.get('stage') ?? ''
+  const stageLine = document.getElementById('stage')
+  if (stageLine !== null && stage !== '') {
+    stageLine.textContent = t(locale, 'shell.failed.stage', { stage })
+    stageLine.hidden = false
+  }
   const detail = params.get('detail') ?? ''
   const pre = document.getElementById('detail')
   if (pre !== null && detail !== '') {

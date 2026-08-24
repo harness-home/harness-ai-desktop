@@ -17,6 +17,7 @@ import type {
   HostingWatermarksResponse,
   LinkDownFrame,
   LinkUpFrame,
+  RemoteQuestionItem,
 } from '@harness-ai/contracts'
 import { linkDownFrameSchema } from '@harness-ai/contracts'
 import type { DesktopAccountService } from '../account/service'
@@ -318,6 +319,24 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
           sessionId: payload.sessionId as string,
           outcome: String(payload.outcome),
         })
+      } else if (type === 'question/requested') {
+        // Multi-option interactions: the envelope rpcId doubles as the remote
+        // question id (the answer must echo it back through /api/respond).
+        if (frame.rpcId !== undefined) {
+          sendLink({
+            type: 'question-pending',
+            questionId: frame.rpcId,
+            sessionId: payload.sessionId as string,
+            questions: (payload.questions ?? []) as RemoteQuestionItem[],
+          })
+        }
+      } else if (type === 'question/resolved') {
+        sendLink({
+          type: 'question-resolved',
+          questionId: String(payload.questionRpcId),
+          sessionId: payload.sessionId as string,
+          outcome: String(payload.outcome),
+        })
       }
     })
     mux.on('close', () => {
@@ -348,6 +367,23 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
           result: {
             ok: true,
             value: { sessionId: frame.sessionId, approvalId: frame.approvalId, outcome: frame.outcome },
+          },
+        }),
+      })
+      const receipt = (await res.json()) as { accepted?: boolean }
+      if (receipt.accepted !== true) throw new Error('local respond not accepted')
+    } else if (frame.type === 'answer') {
+      // The question id IS the requested frame's rpcId; the answer rides the
+      // same client-response envelope an in-app composer would send.
+      const res = await fetch(`${options.localBaseUrl}/api/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'client-response',
+          rpcId: frame.questionId,
+          result: {
+            ok: true,
+            value: { sessionId: frame.sessionId, answer: { answers: frame.answers } },
           },
         }),
       })

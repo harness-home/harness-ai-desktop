@@ -26,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DesktopAccountService } from '../account/service'
 import { log } from '../log'
 import { enterStage } from '../startup-stage'
+import { BootProfiler, formatBootProfile } from './boot-profile'
 import { installProfileFallbackResolver } from './module-resolution'
 import { directoryPickerOverlays } from './picker-overlay'
 import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
@@ -168,12 +169,17 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
         releaseResolver?.()
         releaseResolver = installProfileFallbackResolver(profile.dir)
         const port = await findFreePort()
+        // Subscribed from inside the boot callback, which runs before the tree
+        // mounts: fibers report their own load times, so nothing in dsh has to
+        // change to answer where this stage goes.
+        const profiler = new BootProfiler()
         enterStage('runtime-boot')
         ctx = await boot(
           BIN_NAME,
           rootConfig,
           patches,
           (hostCtx) => {
+            hostCtx.on('internal/status', (fiber, oldState) => { profiler.record(fiber, oldState) })
             hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
             registerChromeCss(hostCtx)
             registerUpdateRoutes(hostCtx)
@@ -201,7 +207,7 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
           await ctx.fiber.dispose()
           throw new Error(`${BIN_NAME}: harness runtime was stopped during startup`)
         }
-        enterStage('webserver-bind')
+        log.info(formatBootProfile(profiler.profile(), enterStage('webserver-bind')))
         const webServer = ctx.get('webServer')
         if (webServer === undefined) {
           throw new Error(`${BIN_NAME}: harness runtime settled without a web server`)

@@ -117,6 +117,33 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
   // but streaming turns flush per event batch and must not hammer the RPC.
   const HEADS_TTL_MS = 2_000
   let headsRefreshedAt = 0
+  /**
+   * Execute one slash command line through the host command registry — the
+   * same channel the desktop composer uses. Distinct from localRpc: the
+   * remote-command gateway requires the payload to be exactly `{ args }`.
+   */
+  const localCommand = async (sessionId: string, line: string): Promise<{ text?: string }> => {
+    const res = await fetch(`${options.localBaseUrl}/api/commands/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        method: 'commands/execute',
+        rpcId: `hosting-cmd-${Date.now()}`,
+        payload: { args: { agentId: sessionId, line, images: [] } },
+      }),
+    })
+    const json = (await res.json()) as {
+      result?: { ok?: boolean; value?: { result?: { kind?: string; text?: string } }; error?: { message?: string } }
+    }
+    if (json.result?.ok !== true) {
+      throw new Error(`command failed: ${JSON.stringify(json.result?.error).slice(0, 200)}`)
+    }
+    const outcome = json.result.value?.result
+    if (outcome?.kind !== 'success') throw new Error(`command rejected: ${outcome?.kind ?? 'unknown'}`)
+    return { ...(outcome.text === undefined ? {} : { text: outcome.text }) }
+  }
+
   const refreshHeads = async (): Promise<void> => {
     if (Date.now() - headsRefreshedAt < HEADS_TTL_MS) return
     const value = (await localRpc('session.list', {})) as { items?: SessionListItem[] }
@@ -401,7 +428,30 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
         content: [{ type: 'text', text: frame.text }],
       })
       return { sessionId: created.sessionId }
+    } else if (frame.type === 'get-config') {
+      return await readSessionConfig(frame.sessionId)
+    } else if (frame.type === 'set-config') {
+      if (frame.permission !== undefined) {
+        // Permission presets switch through the same command line the desktop
+        // composer submits, so both surfaces write through one host path.
+        await localCommand(frame.sessionId, `/permission ${frame.permission}`)
+      }
+      if (frame.model !== undefined) {
+        await localRpc('session.selectModel', {
+          sessionId: frame.sessionId,
+          provider: frame.model.provider,
+          model: frame.model.model,
+          ...(frame.model.effort === undefined ? {} : { reasoningEffort: frame.model.effort }),
+        })
+      }
     } else {
+      // A lone /command line goes to the host command registry (the composer
+      // path); everything else is an ordinary prompt. Command results answer
+      // through the response, never the event log — relay the text.
+      if (/^\/\S/.test(frame.text.trim()) && !frame.text.trim().includes('\n')) {
+        const outcome = await localCommand(frame.sessionId, frame.text.trim())
+        return { commandText: outcome.text ?? 'ok' }
+      }
       await localRpc('session.prompt', {
         sessionId: frame.sessionId,
         mode: 'queue',
@@ -409,6 +459,81 @@ export function startHostingBridge(options: HostingBridgeOptions): { stop: () =>
       })
     }
     return undefined
+  }
+
+  /** Assemble the harness-agnostic composer config for one session. */
+  const readSessionConfig = async (sessionId: string): Promise<unknown> => {
+    interface PermissionSelect {
+      options?: { value?: string; name?: string; description?: string }[]
+      currentValue?: string
+    }
+    const list = (await localRpc('session.list', {})) as {
+      items?: (SessionListItem & { agentPreset?: string; projections?: { values?: { permissions?: PermissionSelect } } })[]
+    }
+    const item = (list.items ?? []).find((entry) => entry.sessionId === sessionId)
+    const select = item?.projections?.values?.permissions
+    const permissions = select?.options === undefined || select.currentValue === undefined
+      ? null
+      : {
+          options: select.options
+            .filter((option) => typeof option.value === 'string' && option.value !== 'custom')
+            .map((option) => ({
+              value: option.value as string,
+              ...(option.name === undefined ? {} : { name: option.name }),
+              ...(option.description === undefined ? {} : { description: option.description }),
+            })),
+          current: select.currentValue,
+        }
+
+    interface ModelCatalog {
+      current?: { provider?: string; model?: string; reasoningEffort?: string }
+      groups?: {
+        id?: string
+        name?: string
+        models?: { id?: string; name?: string; reasoning?: { efforts?: { id?: string; name?: string }[] } }[]
+      }[]
+    }
+    let model: unknown = null
+    try {
+      const catalog = (await localRpc('session.models', { sessionId })) as ModelCatalog
+      if (typeof catalog.current?.provider === 'string' && typeof catalog.current.model === 'string') {
+        model = {
+          current: {
+            provider: catalog.current.provider,
+            model: catalog.current.model,
+            ...(catalog.current.reasoningEffort === undefined ? {} : { effort: catalog.current.reasoningEffort }),
+          },
+          options: (catalog.groups ?? []).flatMap((group) =>
+            (group.models ?? [])
+              .filter((entry) => typeof entry.id === 'string')
+              .map((entry) => ({
+                provider: group.id ?? '',
+                ...(group.name === undefined ? {} : { providerName: group.name }),
+                model: entry.id as string,
+                ...(entry.name === undefined ? {} : { name: entry.name }),
+                ...(entry.reasoning?.efforts === undefined
+                  ? {}
+                  : {
+                      efforts: entry.reasoning.efforts
+                        .filter((effort) => typeof effort.id === 'string')
+                        .map((effort) => ({
+                          value: effort.id as string,
+                          ...(effort.name === undefined ? {} : { name: effort.name }),
+                        })),
+                    }),
+              })),
+          ),
+        }
+      }
+    } catch {
+      // Model catalog is optional: a session without one still reports permissions.
+    }
+
+    return {
+      permissions,
+      model,
+      preset: typeof item?.agentPreset === 'string' ? item.agentPreset : null,
+    }
   }
 
   const connectLink = (): void => {

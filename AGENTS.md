@@ -94,4 +94,6 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 2. **未清退出信号**：`run-marker.json` 存活即表示上次进程没走任何退出路径。`app.exit()` 不触发 `will-quit`，所以**每条主动退出路径都必须走 `exitApp()`**，新增退出点时别直接调 `app.exit()`。
 3. **启动阶段**（`src/main/startup-stage.ts`）：失败页与日志都带阶段名。阶段名是诊断标识符，**保持英文、不翻译**，会被原样引用进日志和报障。`dsh-home`~`webserver-bind` 由适配器上报（根红线 #3：dsh 概念只留在 `src/main/harness/`）。日志里的 timeline 用来定位「哪一段吃掉了 45s 预算」。
 
+4. **boot 内部打点**（`src/main/harness/boot-profile.ts`）：`runtime-boot` 是 dsh 的 `boot()`，不能为了看清楚它就去改框架。打法是订阅 Cordis 的 `internal/status`（纯事件订阅，红线 #1 一级），在 host 回调里挂上，按 fiber 计时。**计时是含子 fiber 的**：接近 wall clock 的那个是容器不是慢插件——实测 `HostResolvedRootInclude` 独占 99%，说明成本在解析+导入整棵模块树，不在任何单个插件。看这行时先看「inclusive vs wall」的比例，那是并发度，不是百分比。
+
 **工作区准入**（`src/main/harness/workspace-location.ts`）：判据是**能力探测**（可写 + 支持目录 junction），不是卷类型推断——我们真正依赖的是 NTFS 语义（上游 Windows ACL pwsh 沙箱 + 运行时解析模块用的重解析点），而卷类型只是盒子上的标签，还得为此引 kernel32 FFI。网络共享因为可能挂死所以先按路径字符串直接拦，不进探测。**block 与 confirm 的分界不要随手挪**：不可写/网络共享是确定坏的，无 junction 只是降级（普通对话不受影响），把后者升成 block 会把人锁在自己的文件夹外面。探测目录必须清干净（`.harness-probe-*` 不得留在用户工作区）。

@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/harness-home/harness-ai-desktop/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/harness-home/harness-ai-desktop/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f766e?style=flat-square"></a>
   <img alt="Status: developer preview" src="https://img.shields.io/badge/status-developer%20preview-b45309?style=flat-square">
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-334155?style=flat-square">
@@ -19,12 +20,17 @@
   <a href="README.md">English</a> · <b>简体中文</b>
 </p>
 
+<p align="center">
+  <a href="#工作原理">工作原理</a> · <a href="#功能">功能</a> · <a href="#安全模型">安全模型</a> · <a href="#从源码构建">构建</a> · <a href="#目录结构">目录结构</a> · <a href="#路线图">路线图</a>
+</p>
+
 ---
 
 **harness-ai-desktop** 是 [Harness AI](https://github.com/harness-home) 的桌面客户端：基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的类 Codex / Claude Code 桌面 Agent 工作台。
 
 Agent 运行时**跑在这个应用里、跑在你自己的机器上**——就在 Electron 主进程内，只绑定回环地址，不开放任何入站端口。客户端补上的是运行时本身不提供的部分：账号、能跟到手机上的托管会话、远程审批，以及一个前置了供应链闸门的插件市场。
 
+> [!IMPORTANT]
 > **开发者预览。** 上游运行时处于 developer preview，官方明示会有破坏性变更；本客户端以固定版本跟随。目前尚未发布安装包，请见[从源码构建](#从源码构建)。
 
 ## 工作原理

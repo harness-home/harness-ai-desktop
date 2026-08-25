@@ -65,6 +65,10 @@ allowBuilds:
   protobufjs: false
 
 minimumReleaseAgeExclude:
+  # First-party. The age gate exists so a freshly compromised third-party
+  # release cannot be installed the minute it lands; it should not stop this
+  # workspace from consuming a contract package it publishes itself.
+  - '@harness-ai/contracts@0.1.0'
   - '@deepseek-ai/dsh-app-boot@0.1.1-rc.2'
   - '@deepseek-ai/dsh-attachment@0.1.1-rc.2'
   - '@deepseek-ai/dsh-brand@0.1.1-rc.2'

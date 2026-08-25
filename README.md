@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/harness-home/harness-ai-desktop/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/harness-home/harness-ai-desktop/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-0f766e?style=flat-square"></a>
   <img alt="Status: developer preview" src="https://img.shields.io/badge/status-developer%20preview-b45309?style=flat-square">
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-334155?style=flat-square">
@@ -19,12 +20,17 @@
   <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
+<p align="center">
+  <a href="#how-it-works">How it works</a> · <a href="#what-it-does">Features</a> · <a href="#security-model">Security</a> · <a href="#building-from-source">Build</a> · <a href="#project-layout">Layout</a> · <a href="#roadmap">Roadmap</a>
+</p>
+
 ---
 
 **harness-ai-desktop** is the desktop client of [Harness AI](https://github.com/harness-home): a Codex / Claude Code–style agent workbench built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`).
 
 The agent runtime runs **inside this app, on your machine** — in the Electron main process itself, bound to loopback, with no inbound port. The client adds what an agent runtime does not ship: an account, hosted session history that follows you to your phone, remote approvals, and a plugin market with a supply-chain gate in front of it.
 
+> [!IMPORTANT]
 > **Developer preview.** The upstream runtime is a developer preview and states that breaking changes are expected; this client tracks it at a pinned version. No installers are published yet — see [Building from source](#building-from-source).
 
 ## How it works

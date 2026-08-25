@@ -111,13 +111,7 @@ flowchart LR
 
 **前置条件** —— Node `^22.19.0 || >=24`、pnpm 11、Windows x64（目前唯一的打包目标），以及一个 DeepSeek API Key（凡是要接模型的环节都需要）。
 
-> **工作区说明。** 本仓库与移动端、服务端共用一个类型契约包（`@harness-ai/contracts`），按同级目录解析。安装依赖前请把它克隆在本仓库旁边：
->
-> ```
-> harness-home/
->   harness-ai-desktop/     ← 本仓库
->   harness-ai-packages/    ← 提供 @harness-ai/contracts
-> ```
+与移动端、服务端共用的线上契约以 [`@harness-ai/contracts`](https://www.npmjs.com/package/@harness-ai/contracts) 从 npm 获取，所以直接克隆本仓库就能装依赖、能构建，不需要工作区里的其它仓库。
 
 ```bash
 pnpm install          # postinstall 拉取 Electron 二进制

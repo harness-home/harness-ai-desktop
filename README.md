@@ -111,13 +111,7 @@ Found a vulnerability? See [SECURITY.md](https://github.com/harness-home/.github
 
 **Prerequisites** — Node `^22.19.0 || >=24`, pnpm 11, Windows x64 (the only packaged target today), and a DeepSeek API key for anything that talks to a model.
 
-> **Workspace note.** This repository shares a typed contract package (`@harness-ai/contracts`) with the mobile client and the hosted service, resolved as a sibling directory. Clone it next to this repository before installing:
->
-> ```
-> harness-home/
->   harness-ai-desktop/     ← this repository
->   harness-ai-packages/    ← provides @harness-ai/contracts
-> ```
+The wire contracts this client shares with the mobile client and the hosted service come from npm as [`@harness-ai/contracts`](https://www.npmjs.com/package/@harness-ai/contracts), so a plain clone installs and builds — nothing else from the workspace is required.
 
 ```bash
 pnpm install          # postinstall fetches the Electron binary

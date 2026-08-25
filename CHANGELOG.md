@@ -22,14 +22,20 @@ breaking and upgrade the clients and the service together.
 
 ### Changed
 
-- **Installation is about a third faster**, measured at 299 s before and 210 s
-  after on the same machine, because the installer now writes 12,371 files
-  instead of 19,691. Source maps and type declarations are 7,285 of those files
-  and no packaged client ever loads them — only a debugger and a compiler do,
-  and neither is present in an installed app. The 53 unused Chromium language
-  packs are gone too (this client ships two UI languages), which is 45 MB but,
-  measurably, no time at all: install time is paid per file, not per megabyte.
-  The download is 139.8 MB → 123.1 MB.
+- **Installation takes 12 seconds instead of 299**, because the application is
+  packaged as an asar archive: 105 files land on disk instead of 19,691. The
+  bytes are the same — install cost is paid per file, to the installer creating
+  each one and to the virus scanner reading it — which is also why the first
+  launch after installing dropped from 39 s to 3 s. Native modules and anything
+  spawned as a process (`rg.exe`, `OpenConsole.exe`) stay unpacked beside the
+  archive, and the packaging gate now verifies that rather than assuming it.
+- **Source maps and type declarations are no longer packaged** — 7,285 of the
+  19,691 files an install used to write, and nothing in a packaged client reads
+  either one; only a debugger and a compiler do, and neither is present in an
+  installed app. On its own that took the install from 299 s to 210 s, which is
+  what asar was then applied on top of. The 53 unused Chromium language packs
+  are gone too (this client ships two UI languages), worth 45 MB and, measurably,
+  no time at all. The download is 139.8 MB → 115.0 MB.
 
 ### Fixed
 

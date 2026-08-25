@@ -1,20 +1,32 @@
-# Packaging (Win x64 first). asar is off because the dsh runtime resolves its
-# plugin closure through real node_modules paths — ESM imports, the profile
-# symlink farm, native modules.
+# Packaging (Win x64 first). asar is ON: installing writes 105 files instead of
+# 12,371, which took the install from 210 s to 12 s on the test machine — the
+# same bytes on disk, because install cost is per file, not per megabyte (see
+# AGENTS.md, the install cost model).
 #
-# Measured 2026-08-25, and the assumption behind that decision did not survive:
-# a spike build with asar on (`-c.asar=true -c.asarUnpack="**/*.{node,exe,dll}"`)
-# booted from a real installation, all 156 fibers, and installs in 12 s against
-# 210 s for this configuration — same bytes on disk, 105 files instead of 12,371.
-# ESM does load from asar on Electron 43. Before it can be turned on here:
-# verify-packaged.cjs has to read the archive's manifest instead of stat()ing
-# paths (that gate exists because of a real escape, and asar would silently
-# retire it), a market install has to be proven to work with pnpm inside the
-# archive, and a real session has to exercise node-pty, ripgrep and sharp from
-# app.asar.unpacked. See AGENTS.md, "安装耗时的成本模型".
+# It was off before, on the belief that the dsh runtime needs real node_modules
+# paths. Two thirds of that belief were wrong, and the remaining third was right
+# in a way nobody had named:
+#   - ESM imports load from the archive on Electron 43;
+#   - native modules load because asarUnpack keeps them on disk;
+#   - CommonJS resolution *from the profile* does not, and that is the real
+#     hazard. dsh reads package metadata with createRequire() against the
+#     composed tree's base — the profile directory — and reaches the in-box
+#     packages only through the symlink farm dsh-app-boot builds in
+#     <dsh home>/profiles/node_modules. Those are OS symlinks, and an OS cannot
+#     walk into a file, so with asar on every one of them dangles. The caller
+#     that matters treats the failure as "not a client package" and caches it,
+#     which composed the entire web UI to nothing without logging one error.
+#     src/main/harness/module-resolution.ts answers from the installation
+#     instead. scripts/smoke-packaged.mjs is what catches a regression here: the
+#     app still boots, still serves and still reports every fiber without it.
 appId: ai.harness.desktop
 productName: Harness AI
-asar: false
+asar: true
+# Anything the OS opens rather than Node: native addons go through dlopen, and
+# rg.exe / OpenConsole.exe / fastlist are spawned as processes. verify-packaged
+# asserts each is a real file, because the archive header lists an unpacked
+# entry exactly like a packed one.
+asarUnpack: '**/*.{node,exe,dll}'
 # Native deps (node-pty, koffi) ship N-API prebuilds that already load inside
 # Electron (proven by the dev shell); a node-gyp rebuild would only demand a
 # local Visual Studio for nothing.

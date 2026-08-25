@@ -112,7 +112,9 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 
 **同一条成本模型也解释「装完第一次打开很卡」**：装完立刻冷启，12,371 文件那版 ready 用了 **38.8s**（`HostResolvedRootInclude` 独占 28.0s——导入整棵模块树，逐文件冷读 + 首次扫描），第二次热启 6.6s；同样刚装完冷启的 asar 版是 **3.4s**。文件数不只买安装时间，也买首次启动时间，而首次启动正是用户形成印象的那一次。（冷启各测 1 次，量级差异可信，精确值别当结论。）
 
-**asar 的结论**：`asar: true` + `asarUnpack: "**/*.{node,exe,dll}"` 的 spike **能从真安装目录启动**（156 fiber 齐，ready 3.2s），ESM 从 asar 内 import 在 Electron 43 上可用，`healProfilesModuleFallback` 建的悬空符号链接也没挡住启动。切换前必须先补三件事：① `verify-packaged.cjs` 改成读 asar 清单（现在它 stat 实际路径，asar 之后会**全绿地失效**，而这道闸门是真实事故留下的）；② 市场装插件（pnpm 在 asar 内）实测；③ 真实会话跑一遍 node-pty / ripgrep / sharp。
+**asar 已在 2026-08-25 切换落地**（`asar: true` + `asarUnpack: '**/*.{node,exe,dll}'`）。三道预设验证的结果：① `verify-packaged.cjs` 改成读归档清单，并**注入四种坏情况做了证伪**（归档里没有的必需路径、被当成 unpacked 的打包文件、不存在的 unpacked 路径、闭包缺包——全部拦下），控制组通过；② pnpm 从归档内跑通（`--version` + 真装一个包进 profile 形状目录）；③ ripgrep / node-pty（conpty 回显）/ sharp（libvips 编解码）/ koffi（FFI 对 pid）四件套从 `app.asar.unpacked` 实跑通过。
+
+**但真正的坑不在这三条里**——见上面「asar 打开后客户端模块图静默清空」。预设的验证清单只覆盖了想得到的风险，漏掉的那个恰好没有任何报错。
 
 ## 安装后可改的配置（2026-08-25）
 

@@ -5,11 +5,18 @@
 //    and electron-builder walks only `dependencies`, so a missing peer boots
 //    fine from dist/ (Node's parent walk finds the dev tree) and fails on a
 //    real install. Never trust a smoke test run from inside the repo.
+//
+// The app root is a directory when asar is off and an archive when it is on,
+// so both checks go through `packagedApp()` rather than through `existsSync`.
+// That indirection is the whole point of it: with asar on, every path below
+// stops existing as a filesystem path, and a gate written against filesystem
+// paths would not start failing — it would start passing while checking
+// nothing, which is worse than never having had it.
 'use strict'
 const { existsSync } = require('node:fs')
-const { join } = require('node:path')
+const { join, sep } = require('node:path')
 
-/** Paths relative to the packaged app root (resources/app) that must exist. */
+/** Paths relative to the packaged app root that must exist. */
 const REQUIRED = [
   'package.json',
   'out/main/index.js',
@@ -36,23 +43,96 @@ const REQUIRED = [
   'THIRD_PARTY_NOTICES.md',
 ]
 
+/**
+ * Paths that must be real files on disk rather than archive members, because
+ * the thing that opens them is not Node: `process.dlopen` for native addons,
+ * and the OS loader for anything spawned as a process. Under asar these have to
+ * land in app.asar.unpacked; with asar off the check is trivially satisfied.
+ */
+const REQUIRED_UNPACKED = [
+  'node_modules/node-pty/prebuilds/win32-x64/conpty.node',
+  'node_modules/node-pty/prebuilds/win32-x64/conpty/conpty.dll',
+  'node_modules/node-pty/prebuilds/win32-x64/conpty/OpenConsole.exe',
+  'node_modules/@koromix/koffi-win32-x64/win32_x64/koffi.node',
+  'node_modules/@vscode/ripgrep-win32-x64/bin/rg.exe',
+  'node_modules/@img/sharp-win32-x64/lib/sharp-win32-x64-0.35.3.node',
+  'node_modules/@img/sharp-win32-x64/lib/libvips-cpp-8.18.3.dll',
+]
+
 /** Closure packages that never load in the packaged host (browser-only peers). */
 const NOT_REQUIRED_AT_RUNTIME = new Set([
   'react', 'react-dom', 'scheduler', 'loose-envify', 'csstype',
   '@types/react', '@types/prop-types',
 ])
 
-module.exports = async function verifyPackaged(context) {
-  const appRoot = join(context.appOutDir, 'resources', 'app')
-  const missing = REQUIRED.filter((path) => !existsSync(join(appRoot, path)))
-  if (missing.length > 0) {
-    throw new Error(`packaged runtime is incomplete; missing:\n  ${missing.join('\n  ')}`)
+/**
+ * Ask the packaged app whether it carries a path, whichever shape it has.
+ *
+ * @param appOutDir - the packaged application directory.
+ * @returns `describe` for messages, `has` for "the app carries this", and
+ *   `hasOnDisk` for "and it is a real file, not an archive member".
+ */
+function packagedApp(appOutDir) {
+  const resources = join(appOutDir, 'resources')
+  const archive = join(resources, 'app.asar')
+
+  if (!existsSync(archive)) {
+    const root = join(resources, 'app')
+    const at = (path) => join(root, ...path.split('/'))
+    return {
+      shape: 'directory',
+      describe: root,
+      has: (path) => existsSync(at(path)),
+      hasOnDisk: (path) => existsSync(at(path)),
+    }
   }
 
-  // Beside the executable rather than inside resources/app: this is the file a
-  // person edits on an installed machine (src/main/runtime-config.ts). Shipping
-  // a build without it would leave nothing to edit and no sign that there
-  // should have been.
+  // @electron/asar comes with electron-builder; the archive is read through it
+  // rather than by unpacking, so the gate stays cheap.
+  const { statFile } = require('@electron/asar')
+  const unpacked = join(resources, 'app.asar.unpacked')
+  // Filesystem.getFile splits on path.sep, so the lookup key is native.
+  const key = (path) => path.split('/').join(sep)
+  const entry = (path) => {
+    try {
+      return statFile(archive, key(path), true)
+    } catch {
+      return undefined
+    }
+  }
+  return {
+    shape: 'asar',
+    describe: archive,
+    has(path) {
+      const found = entry(path)
+      if (found === undefined) return false
+      // The header records an unpacked entry exactly like a packed one, so a
+      // wrong asarUnpack glob would pass here and fail at dlopen time.
+      if (found.unpacked === true) return existsSync(join(unpacked, ...path.split('/')))
+      return true
+    },
+    hasOnDisk: (path) => existsSync(join(unpacked, ...path.split('/'))),
+  }
+}
+
+module.exports = async function verifyPackaged(context) {
+  const app = packagedApp(context.appOutDir)
+
+  const missing = REQUIRED.filter((path) => !app.has(path))
+  if (missing.length > 0) {
+    throw new Error(`packaged runtime is incomplete (${app.describe}); missing:\n  ${missing.join('\n  ')}`)
+  }
+
+  const packed = REQUIRED_UNPACKED.filter((path) => !app.hasOnDisk(path))
+  if (packed.length > 0) {
+    throw new Error(
+      'these must be real files on disk — they are opened by dlopen or by the OS, not by Node — '
+      + `but they are not:\n  ${packed.join('\n  ')}`)
+  }
+
+  // Beside the executable rather than inside the app: this is the file a person
+  // edits on an installed machine (src/main/runtime-config.ts). Shipping a build
+  // without it would leave nothing to edit and no sign that there should have been.
   if (!existsSync(join(context.appOutDir, 'harness-ai.config.json'))) {
     throw new Error('packaged app is missing harness-ai.config.json beside the executable')
   }
@@ -61,11 +141,13 @@ module.exports = async function verifyPackaged(context) {
   const closure = runtimeClosure()
   const missingModules = closure.filter((name) =>
     !NOT_REQUIRED_AT_RUNTIME.has(name)
-    && !existsSync(join(appRoot, 'node_modules', ...name.split('/'), 'package.json')))
+    && !app.has(`node_modules/${name}/package.json`))
   if (missingModules.length > 0) {
     throw new Error(
       `packaged node_modules is missing ${String(missingModules.length)} runtime-closure package(s) `
       + `(declare them as direct dependencies):\n  ${missingModules.join('\n  ')}`)
   }
-  console.log(`verify-packaged: ${String(REQUIRED.length)} required paths, ${String(closure.length)} closure packages present`)
+  console.log(
+    `verify-packaged (${app.shape}): ${String(REQUIRED.length)} required paths, `
+    + `${String(REQUIRED_UNPACKED.length)} unpacked, ${String(closure.length)} closure packages present`)
 }

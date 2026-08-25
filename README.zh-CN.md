@@ -11,7 +11,7 @@
   <img alt="Status: developer preview" src="https://img.shields.io/badge/status-developer%20preview-b45309?style=flat-square">
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-334155?style=flat-square">
   <img alt="Electron 43" src="https://img.shields.io/badge/Electron-43-334155?style=flat-square">
-  <img alt="Node ^22.19 or >=24" src="https://img.shields.io/badge/Node-%5E22.19%20%7C%7C%20%E2%89%A524-334155?style=flat-square">
+  <img alt="Node 22.19 or 24 and up" src="https://img.shields.io/badge/Node-%5E22.19%20%7C%7C%20%E2%89%A524-334155?style=flat-square">
   <a href="https://github.com/deepseek-ai/deepseek-harness"><img alt="Built on DeepSeek Harness" src="https://img.shields.io/badge/runtime-DeepSeek%20Harness%200.1.1--rc.2-0f766e?style=flat-square"></a>
 </p>
 

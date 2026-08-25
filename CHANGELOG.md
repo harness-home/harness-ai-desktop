@@ -7,7 +7,7 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
-## [Unreleased]
+## [0.1.6] — 2026-08-25
 
 ### Added
 
@@ -140,4 +140,5 @@ warn on first run; the release notes carry the SHA-256 to check against.
   build output — so two files had never been committed and a fresh clone could
   not typecheck.
 
+[0.1.6]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.6
 [0.1.5]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.5

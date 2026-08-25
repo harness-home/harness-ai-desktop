@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="#工作原理">工作原理</a> · <a href="#功能">功能</a> · <a href="#安全模型">安全模型</a> · <a href="#从源码构建">构建</a> · <a href="#目录结构">目录结构</a> · <a href="#路线图">路线图</a>
+  <a href="#工作原理">工作原理</a> · <a href="#功能">功能</a> · <a href="#安全模型">安全模型</a> · <a href="#从源码构建">构建</a> · <a href="#发版">发版</a> · <a href="#目录结构">目录结构</a> · <a href="#路线图">路线图</a>
 </p>
 
 ---
@@ -138,6 +138,18 @@ pnpm dev              # 先构建仓内插件，再启动壳
 | `pnpm dsh:version` | 一步把所有钉死的 `dsh` 依赖切到新的上游版本。 |
 
 完整发版清单（含人工步骤）见 [docs/acceptance.md](docs/acceptance.md)。
+
+## 发版
+
+每次 push 与 PR 都会在 Windows 上跑一遍类型检查、单测与生产构建——客户端实际发布的平台。
+
+发版由 tag 驱动。推一个 `v<版本号>` 标签会跑同一道闸门，打出 NSIS 安装包，并连同应用内更新器要读的 `latest.yml` 与 blockmap 一起发布：
+
+```bash
+git tag v0.1.5 && git push origin v0.1.5
+```
+
+标签必须与 `package.json` 里的 `version` 一致，对不上会在开始构建之前失败。安装包**未做代码签名**——SmartScreen 会告警，发布说明里带了 SHA-256 供核对。
 
 ## 目录结构
 

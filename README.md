@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="#how-it-works">How it works</a> · <a href="#what-it-does">Features</a> · <a href="#security-model">Security</a> · <a href="#building-from-source">Build</a> · <a href="#project-layout">Layout</a> · <a href="#roadmap">Roadmap</a>
+  <a href="#how-it-works">How it works</a> · <a href="#what-it-does">Features</a> · <a href="#security-model">Security</a> · <a href="#building-from-source">Build</a> · <a href="#releases">Releases</a> · <a href="#project-layout">Layout</a> · <a href="#roadmap">Roadmap</a>
 </p>
 
 ---
@@ -138,6 +138,18 @@ pnpm dev              # build the in-repo plugins, then run the shell
 | `pnpm dsh:version` | Move every pinned `dsh` package to a new upstream version in one step. |
 
 The release checklist, including the manual passes, is in [docs/acceptance.md](docs/acceptance.md).
+
+## Releases
+
+Every push and pull request runs typecheck, the unit suite and a production build on Windows — the platform the client ships on.
+
+A release is a tag. Pushing `v<version>` runs the same gate, packages the NSIS installer and publishes it, together with `latest.yml` and the blockmap the in-app updater reads:
+
+```bash
+git tag v0.1.5 && git push origin v0.1.5
+```
+
+The tag must match `version` in `package.json`; a mismatch fails the job before anything is built. Installers are **not code-signed** — SmartScreen will warn, and the release notes carry the SHA-256 to check against.
 
 ## Project layout
 

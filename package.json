@@ -57,7 +57,7 @@
     "@deepseek-ai/dsh-timeout": "catalog:dsh",
     "@deepseek-ai/dsh-web-app": "catalog:dsh",
     "@deepseek-ai/dsh-workflow": "catalog:dsh",
-    "@harness-ai/contracts": "link:../harness-ai-packages/contracts",
+    "@harness-ai/contracts": "^0.1.0",
     "@harness-ai/desktop-account-ui": "workspace:*",
     "@harness-ai/desktop-brand": "workspace:*",
     "@harness-ai/desktop-directory-picker": "workspace:*",

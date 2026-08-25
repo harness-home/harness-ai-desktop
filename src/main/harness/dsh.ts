@@ -27,7 +27,7 @@ import type { DesktopAccountService } from '../account/service'
 import { log } from '../log'
 import { enterStage } from '../startup-stage'
 import { BootProfiler, formatBootProfile } from './boot-profile'
-import { installProfileFallbackResolver } from './module-resolution'
+import { installInstallationRequireFallback, installProfileFallbackResolver } from './module-resolution'
 import { directoryPickerOverlays } from './picker-overlay'
 import { recoverIncompleteInstall } from './install-journal'
 import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
@@ -137,11 +137,17 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
   let ctx: Context | undefined
   let stopped = false
   let releaseResolver: (() => void) | undefined
+  let releaseRequireFallback: (() => void) | undefined
 
   return {
     async start(): Promise<HarnessHandle> {
       enterStage('dsh-home')
       const installAnchor = join(options.appRoot, 'package.json')
+      // Installed before anything reads package metadata: the tree is composed
+      // from the profile, and CommonJS resolution from there only reaches the
+      // installation through symlinks that an archive-packaged app cannot have.
+      releaseRequireFallback?.()
+      releaseRequireFallback = installInstallationRequireFallback(options.appRoot)
       const home = resolveDshHome()
       // Only the home .env layer applies: a desktop launch has no meaningful
       // invoking directory, unlike the CLI.
@@ -251,6 +257,8 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
       stopped = true
       releaseResolver?.()
       releaseResolver = undefined
+      releaseRequireFallback?.()
+      releaseRequireFallback = undefined
       const current = ctx
       ctx = undefined
       if (current !== undefined) await current.fiber.dispose()

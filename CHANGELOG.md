@@ -31,6 +31,19 @@ breaking and upgrade the clients and the service together.
   measurably, no time at all: install time is paid per file, not per megabyte.
   The download is 139.8 MB → 123.1 MB.
 
+### Fixed
+
+- **CommonJS module resolution no longer depends on a symlink farm.** The
+  runtime reads package metadata with `createRequire()` against the composed
+  tree's base — the profile directory — and reached the installed packages only
+  through symlinks that `dsh-app-boot` writes under the dsh home. Those links
+  point at whichever build started last, so moving the installation, or having
+  more than one build, left them dangling; resolution then failed, the caller
+  treated the failure as "this is not a client package" and cached it, and the
+  whole web UI composed to nothing without a single error in the log. Resolution
+  now falls back to the installation's own `node_modules` after a genuine
+  failure, which is also what let asar be turned on at all.
+
 ## [0.1.5] — 2026-08-25
 
 First public release, covering everything built since the shell was scaffolded.

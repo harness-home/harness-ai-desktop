@@ -71,6 +71,20 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - 原生对话框不出现在 `MainWindowTitle` 里，要用 `EnumWindows` 按标题找（我们的选择器窗口标题是 `Select a workspace folder`，窗口类 `#32770`）。
 - **别用 SendKeys 去驱动原生对话框**：前台窗口切换会被系统拦，按键会打到别的应用上。
 
+## asar 打开后客户端模块图静默清空（2026-08-25，真实事故）
+
+**现象**：`asar: true` 之后客户端照常启动、端口在听、首页也吐得出来；`ctx.loader.entries()` 与非 asar **完全一致**（144 条 / 116 条有 fiber / 我们 5 个插件全部 `fiber=true disabled=false`），boot profile 照样 156 fiber，日志零错误。但首页只有 3,226 字符（非 asar 是 16,188）、`/plugins/*/client.js` **一条都没有**、自研插件全 404——**整个 Web UI 是空的**。
+
+**根因**：`dsh-client-modules` 用 `createRequire(ctx.baseUrl)` 读包元数据，而这个 base 是组合树的根，也就是 **profile 目录**。从 profile 做 CJS 解析要够到装在应用里的包，唯一的路是 `healProfilesModuleFallback` 在 `<dsh home>/profiles/node_modules` 下建的那片**真实 OS 符号链接**。asar 之后它们指向 `...\app.asar\node_modules\<包>`，而 `app.asar` 是一个文件，内核走不进去 → `MODULE_NOT_FOUND` → `resolveMeta` **catch 住、缓存成「不是 client 包」、不打日志**。40 个 client 包全军覆没，全程零报错。
+
+**修法**：`module-resolution.ts` 的 `installInstallationRequireFallback()`——给 CJS 侧补上与 ESM 侧对称的兜底：`Module._resolveFilename` 真抛 `MODULE_NOT_FOUND` 之后再去安装目录的 `node_modules` 找。只在失败后生效，遮蔽不了 profile 合法提供的包；`app.asar\...` 这个**路径字符串**带 `.asar`，Electron 的归档层会接管，所以读得到——过不去的只有内核解析符号链接那一步。
+
+**教训（比修法重要）**：
+
+- **`registerHooks` 只管 ESM。** 本仓库凡是「解析兜底」相关的改动，都要追问另一半（CJS / `createRequire`）谁在管。这里原本是那片符号链接农场在管，而这件事从没被写下来过。
+- **判据必须落在会坏的那一侧。** 当时拿「BOOTED + fiber 数 + ready 耗时」判定 asar 通过——全是 node 侧指标，坏的却是 client 侧，**node 侧指标一个都不会变红**。打包形态类改动的验收口径以 `scripts/smoke-packaged.mjs` 为准（它查 boot graph 与 client.js 可达性），别拿「起来了」当通过。
+- **别再依赖那片符号链接农场。** 它指向「最后一次启动的那个构建」——换构建、挪安装目录、装多个版本都会让它悬空，症状同样是静默变空。
+
 ## 应用升级（台账 #14 落地，2026-08-23）
 
 - `src/main/updater.ts`：electron-updater + generic feed。**feed 来源**：打包产物里的 `app-update.yml`（由 `electron-builder.yml` 的 `publish` 段生成），可被 `HARNESS_UPDATE_FEED_URL` 运行时覆盖（免重新打包，测试与私有部署都靠它）；`HARNESS_UPDATE_AUTO=0` 关掉自动检查。

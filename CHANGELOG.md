@@ -7,6 +7,18 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [Unreleased]
+
+### Fixed
+
+- **The window frame follows the theme you picked.** The title bar is drawn by
+  the operating system from the *application's* theme, which until now was
+  whatever the desktop was set to: choosing Light in Appearance on a dark-mode
+  desktop left a black caption bar sitting on top of a white app. The shell now
+  mirrors the theme preference onto the native frame, live — switching in
+  Settings repaints the title bar with the rest of the window, and "Follow
+  system" still follows the system in both directions.
+
 ## [0.1.7] — 2026-08-25
 
 ### Added

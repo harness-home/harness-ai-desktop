@@ -35,6 +35,7 @@ import { registerAccountRoutes } from './account-routes'
 import { registerChromeCss } from './chrome-css'
 import { registerMarketRoutes } from './market-routes'
 import { registerUpdateRoutes } from './update-routes'
+import { registerWindowTheme } from './window-theme'
 import type { HarnessAdapter, HarnessHandle } from './adapter'
 import { findFreePort } from './port'
 
@@ -227,6 +228,9 @@ export function createDshAdapter(options: DshAdapterOptions): HarnessAdapter {
           await ctx.fiber.dispose()
           throw new Error(`${BIN_NAME}: harness runtime was stopped during startup`)
         }
+        // After the mount: the theme plugin's settings namespace only exists
+        // once its own row has loaded.
+        registerWindowTheme(ctx)
         log.info(formatBootProfile(profiler.profile(), enterStage('webserver-bind')))
         const webServer = ctx.get('webServer')
         if (webServer === undefined) {

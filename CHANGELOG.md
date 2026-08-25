@@ -7,6 +7,32 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [Unreleased]
+
+### Added
+
+- **Updates now tell you about themselves.** When a new version has finished
+  downloading, the client asks what to do with it: restart and install, leave it
+  for the next time you quit, or cancel it. Cancelling actually cancels — the
+  installer is already on disk at that point, so an answer that only closed the
+  window would still have installed the update when you next quit; it turns the
+  quit-time install off and the tray says so. Closing the dialog counts as
+  cancelling, because the one thing silence cannot mean is "restart my app".
+- **A check you asked for always answers**, including "you are up to date". A
+  check nobody asked for stays quiet unless it has something ready to act on:
+  finding and downloading a version happen in the tray, without interrupting.
+
+### Changed
+
+- **The client now has a real update feed.** It points at the GitHub releases
+  the release workflow already publishes, so an installed client can find,
+  download and install a new version by itself — until now every shipped build
+  carried a placeholder host and updates were switched off.
+- Every 0.x release is published as a pre-release, which update clients skip by
+  default, so a preview build opts into them deliberately. A 1.0.0 build will
+  stop accepting them without any further change, rather than quietly keeping
+  its users on the preview channel.
+
 ## [0.1.6] — 2026-08-25
 
 ### Added

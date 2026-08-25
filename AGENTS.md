@@ -85,13 +85,22 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - **判据必须落在会坏的那一侧。** 当时拿「BOOTED + fiber 数 + ready 耗时」判定 asar 通过——全是 node 侧指标，坏的却是 client 侧，**node 侧指标一个都不会变红**。打包形态类改动的验收口径以 `scripts/smoke-packaged.mjs` 为准（它查 boot graph 与 client.js 可达性），别拿「起来了」当通过。
 - **别再依赖那片符号链接农场。** 它指向「最后一次启动的那个构建」——换构建、挪安装目录、装多个版本都会让它悬空，症状同样是静默变空。
 
-## 应用升级（台账 #14 落地，2026-08-23）
+## 应用升级（台账 #14 落地 2026-08-23，2026-08-25 补完检测/弹窗/安装闭环）
 
-- `src/main/updater.ts`：electron-updater + generic feed。**feed 来源**：打包产物里的 `app-update.yml`（由 `electron-builder.yml` 的 `publish` 段生成），可被 `HARNESS_UPDATE_FEED_URL` 运行时覆盖（免重新打包，测试与私有部署都靠它）；`HARNESS_UPDATE_AUTO=0` 关掉自动检查。
-- **口径**：自动下载、**绝不自动安装**——装与不装由用户点（托盘「重启并安装」）或下次真正退出时执行。启动 45s 后首查，之后每 6 小时。
-- **更新链路不能碰运行时**：feed 不可达只写进状态（`phase: 'error'`）并显示在托盘，dsh 侧零影响。托盘那一行既是状态也是操作，不另开菜单项。
-- `electron-builder.yml` 的 `publish.url` 目前是占位域名（分发位置未定，台账 #14/#30）；`dist:win` 带 `--publish never`，本地打包不会真的上传。
-- **验证方式**（已实测）：`-c.directories.output=dist/next` 打一个更高版本 → 静态服务器起 feed → 低版本 `win-unpacked` 带 `HARNESS_UPDATE_FEED_URL` 启动 → 应看到 checking → available → downloading → ready。差分下载会因为 feed 里没有旧版 blockmap 而回落全量，这是预期的。
+- `src/main/updater.ts` 状态机 + `src/main/update-prompt.ts` 两个弹窗 + `src/main/tray.ts` 常驻状态行 + `harness/update-routes.ts` 回环桥。
+- **feed = GitHub Releases**（`electron-builder.yml` 的 `publish: provider: github`，写进打包产物的 `app-update.yml`）。release 工作流本来就把 exe + blockmap + `latest.yml` 挂在每个 `v*` tag 上，所以分发位置现在是既成事实而不是待定项（台账 #31）。`HARNESS_UPDATE_FEED_URL` 仍可运行时覆盖成 generic feed——测试和私有部署都靠它。
+- **0.x 必须显式接受 prerelease**：`gh release create` 对 0.x 加 `--prerelease`，而 electron-updater 默认跳过 prerelease。`wantsPrereleases()` 让 0.x / 带 `-rc` 的构建接受它们，1.0.0 之后自动不再接受——**别把它改成常量 true**，那等于把正式用户塞进预览通道。漏了这条的症状是「检查更新一切正常，永远查不到新版本」。
+- **口径：自动下载、绝不自动安装。** 弹窗只在**下载完成**时弹一次（每个版本每次运行只弹一次），因为那才是有东西可操作的时刻；发现新版本和下载中都只在托盘里安静显示。用户主动点的检查**一定给回答**，包括「已是最新」——静默会被读成按钮坏了。
+- **三个答案不是两个**（2026-08-25，按需求补的）：
+  - `now` 重启并安装；
+  - `later` 保留，下次退出时自动装（也是不操作时的默认行为）；
+  - `cancel` **必须真的把 `autoInstallOnAppQuit` 关掉**并把 `status.installOnQuit` 置 false。安装包这时已经躺在磁盘上了，**只关窗口不改行为的「取消」是在骗人**——用户下次退出照样被装。托盘那一行会切成「已取消自动安装」的文案，降级必须可见。
+  - **关掉弹窗 = cancel**（`cancelId` 指向它，`answerForButton()` 对任何未知返回值也回落 cancel）：从沉默里唯一能安全推定的，是「别擅自重启用户的应用」。
+- **弹窗按钮点不到，所以映射单独钉住**：Electron 在 Windows 上的消息框按钮不在 UIA 树里，本仓库又禁止用 SendKeys 驱动原生对话框。因此「按钮序号 → 答案」提成纯函数 `answerForButton()` 并单测覆盖（含 -1 / 越界 / NaN）。**别把它内联回去。**
+- **验证方式**（2026-08-25 实测）：`-c.extraMetadata.version=0.1.7 -c.directories.output=dist/next` 打高版本 → `scratchpad/feed-server.mjs` 起静态 feed（要支持 Range，差分下载会用）→ 低版本带 `HARNESS_UPDATE_FEED_URL` 启动 → POST `/desktop/update/check` 免等 45s 首查 → 观察 checking → available → downloading → ready → 弹窗。
+  - **坑**：`--dir` 构建**不含 `app-update.yml`**，electron-updater 下载阶段会 `ENOENT` 失败（检查阶段却是好的，所以看起来像网络问题）。从完整构建拷一份过去再测。
+  - 差分下载会因为 feed 里没有旧版 blockmap 回落全量，这是预期的。
+  - 实测已覆盖：检测、下载、弹窗文案、**取消分支**（WM_CLOSE → `installOnQuit: false`）、**立即安装分支**（走完安装器并把客户端升到 0.1.7）。`later` 分支由单测覆盖，没有在真实弹窗上点过。
 
 ## 安装耗时的成本模型（2026-08-25 实测，别再凭直觉优化体积）
 

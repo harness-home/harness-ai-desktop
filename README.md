@@ -93,7 +93,22 @@ The runtime's permission system governs tool calls, not the code a plugin ships.
 
 ### Reliability
 
-Single-instance lock · crash audit of the previous run · secret-masked file logs · system tray · a recovery page (retry / open logs / quit) when boot fails · in-app updates that never install behind your back · and a boot watchdog that measures **progress** rather than wall-clock time (20 s without progress, 180 s absolute), so a slow machine is not mistaken for a hung one.
+Single-instance lock · crash audit of the previous run · secret-masked file logs · system tray · a recovery page (retry / open logs / quit) when boot fails · and a boot watchdog that measures **progress** rather than wall-clock time (20 s without progress, 180 s absolute), so a slow machine is not mistaken for a hung one.
+
+### Updates
+
+The client checks for a new version shortly after starting and every six hours,
+and downloads one in the background — the tray reports it. **Nothing is ever
+installed behind your back.** When a version is downloaded, you are asked once:
+
+| Answer | What happens |
+| --- | --- |
+| **Restart and install** | The app restarts into the new version now. |
+| **Later** | The download is kept and installs the next time you quit. |
+| **Cancel** | The download is kept, but nothing installs by itself. The tray still offers to install it whenever you want. |
+
+Closing the dialog is the same as cancelling. A check you start yourself always
+answers, including "you are up to date".
 
 ## Security model
 
@@ -138,7 +153,7 @@ The wire contracts this client shares with the mobile client and the hosted serv
 ```bash
 pnpm install          # postinstall fetches the Electron binary
 pnpm typecheck
-pnpm test             # 127 unit tests, offline
+pnpm test             # 146 unit tests, offline
 pnpm dev              # build the in-repo plugins, then run the shell
 ```
 

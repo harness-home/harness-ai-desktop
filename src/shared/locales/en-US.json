@@ -18,5 +18,20 @@
   "tray.update.ready": "Restart and install {version}",
   "tray.update.error": "Update check failed — retry",
   "tray.update.unsupported.notPackaged": "Updates unavailable in a development build",
-  "tray.update.unsupported.noFeed": "No update server configured"
+  "tray.update.unsupported.noFeed": "No update server configured",
+  "update.ok": "OK",
+  "update.check.title": "Check for updates",
+  "update.upToDate.message": "Harness AI {version} is up to date.",
+  "update.found.message": "Harness AI {version} is available.",
+  "update.found.detail": "It is downloading in the background. You will be told when it is ready to install.",
+  "update.ready.title": "Update ready",
+  "update.ready.message": "Harness AI {version} is downloaded and ready to install.",
+  "update.ready.detail": "Installing restarts the app. Later keeps it and installs it the next time you quit. Cancel keeps the download but stops it installing on its own — you can still install it from the tray.",
+  "update.ready.restart": "Restart and install",
+  "update.ready.later": "Later",
+  "update.failed.message": "Could not check for updates.",
+  "update.unsupported.noFeed": "No update server is configured for this build.",
+  "update.unsupported.notPackaged": "Updates are unavailable in a development build.",
+  "update.ready.cancel": "Cancel",
+  "tray.update.readyHeld": "Install {version} (auto-install cancelled)"
 }

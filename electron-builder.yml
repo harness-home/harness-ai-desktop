@@ -66,16 +66,22 @@ extraFiles:
 afterPack: ./scripts/verify-packaged.cjs
 # Update feed. This block is what makes electron-builder write app-update.yml
 # into the packaged resources and emit latest.yml beside the installer, which
-# together are the update manifest electron-updater reads. The host below is a
-# sentinel until the distribution location is decided (workspace ledger #31);
-# a deployment or a test can point the client elsewhere at runtime with
-# HARNESS_UPDATE_FEED_URL, without rebuilding.
+# together are the update manifest electron-updater reads.
+#
+# It points at the GitHub releases the release workflow already publishes —
+# installer, blockmap and latest.yml are attached to every `v*` tag — so the
+# distribution location is now a fact rather than a decision (ledger #31/#14).
+# Note that every 0.x release is published as a pre-release, which
+# electron-updater skips by default; src/main/updater.ts opts a preview build
+# into them deliberately rather than leaving the client checking forever and
+# finding nothing.
+#
+# HARNESS_UPDATE_FEED_URL still overrides this at runtime with a generic feed,
+# which is how the update path is tested and how a private deployment runs.
 publish:
-  - provider: generic
-    # Sentinel host until the distribution location is decided (ledger #31);
-    # .invalid can never resolve, so no client ever fetches it.
-    url: https://updates.invalid/desktop/win-x64
-    channel: latest
+  - provider: github
+    owner: harness-home
+    repo: harness-ai-desktop
 # Custom URL scheme: the public website hands a plugin catalog id to the
 # installed client with `harness-ai://install?listing=<id>`. The app also claims
 # the scheme at runtime, so a portable/unpacked run still works.

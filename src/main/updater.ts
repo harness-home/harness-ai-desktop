@@ -1,14 +1,18 @@
 // Application updates.
 //
-// electron-updater against a generic feed: the packaged build carries the feed
-// written by electron-builder (`app-update.yml`), and `HARNESS_UPDATE_FEED_URL`
-// overrides it at runtime so a deployment can point the client somewhere else
-// without a rebuild (the production location is still open — workspace ledger
-// #14/#30).
+// electron-updater against the GitHub releases the release workflow publishes:
+// the packaged build carries the feed written by electron-builder
+// (`app-update.yml`), and `HARNESS_UPDATE_FEED_URL` overrides it at runtime with
+// a generic feed, which is how the whole path is tested and how a private
+// deployment runs without a rebuild.
 //
-// Two deliberate choices:
+// Four deliberate choices:
 // - Updates are never installed behind the user's back. A ready update is
 //   applied when the user asks, or on the next real quit.
+// - The user is told once per version, when the download is already staged, so
+//   the interruption comes with something to act on rather than a promise.
+// - A check the user asked for always answers, including "you are up to date";
+//   a check nobody asked for stays quiet unless it has news.
 // - Nothing here may throw into startup. An unreachable feed is a status the
 //   user can read, not a failure that touches the runtime.
 import { existsSync, readFileSync } from 'node:fs'
@@ -44,6 +48,12 @@ export interface UpdateStatus {
   percent?: number
   /** Failure detail from the last check or download. */
   message?: string
+  /**
+   * Whether a staged update will install when the app quits. True unless the
+   * user cancelled this one — a cancel that left this on would be a lie, since
+   * the download is already on disk and quitting would apply it.
+   */
+  installOnQuit?: boolean
   /** ISO timestamp of the last completed check. */
   checkedAt?: string
 }
@@ -54,26 +64,60 @@ const FIRST_CHECK_DELAY_MS = 45_000
 /** Interval between automatic checks. */
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 
+/** What the shell gives the updater: a status sink and the two places it speaks. */
+export interface UpdaterHost {
+  /** Update state changed; the tray and any bridge reader should re-read it. */
+  onChanged: () => void
+  /**
+   * A version is downloaded and ready. Called at most once per version per run,
+   * because two of the three answers are already the standing behaviour and
+   * asking again would only be nagging. The answer comes back through
+   * {@link answerInstall}.
+   */
+  offerInstall: (version: string) => void
+  /**
+   * A check the user asked for has an answer — including "already up to date",
+   * which is the answer they are most often looking for.
+   */
+  reportCheck: (status: UpdateStatus) => void
+}
+
+/** Why a check is running, which decides whether its outcome is announced. */
+export type CheckIntent = 'auto' | 'manual'
+
+/**
+ * What the user answered when offered a staged update.
+ * - `now` restarts and installs.
+ * - `later` keeps it staged; it installs on the next real quit.
+ * - `cancel` keeps it downloaded but stops it installing by itself. Not the
+ *   same as `later`, and the difference is the whole reason there are three
+ *   buttons: the bytes are already on disk, so a cancel that only closed the
+ *   dialog would still install the update at quit time.
+ */
+export type InstallAnswer = 'now' | 'later' | 'cancel'
+
 let status: UpdateStatus = { phase: 'unsupported', currentVersion: '0.0.0', reason: 'not-packaged' }
-let onChanged: (() => void) | undefined
+let host: UpdaterHost | undefined
 let timer: NodeJS.Timeout | undefined
 let configured = false
+/** Version the user has already been offered, so the prompt never repeats. */
+let offeredVersion: string | undefined
 
 function setStatus(patch: Partial<UpdateStatus>): void {
   status = { ...status, ...patch }
-  onChanged?.()
+  host?.onChanged()
 }
 
 /**
- * Host the packaged feed points at while the distribution location is still
- * open (workspace ledger #31). A build carrying only this placeholder has no
- * real feed: saying so beats letting every client sit in a permanent "update
- * check failed", which reads like a defect rather than a pending decision.
+ * Sentinel host from before the distribution location was decided (workspace
+ * ledger #31). Shipped builds now publish to GitHub releases and carry a real
+ * feed, so this is no longer the normal case — it stays because a build can
+ * still be configured with a generic provider and nowhere to point it, and a
+ * client that says "no update server configured" beats one sitting in a
+ * permanent "update check failed", which reads like a defect.
  *
- * The sentinel uses the reserved .invalid TLD (RFC 2606) rather than a domain
- * anyone could own: it can never resolve, and it can never collide with the
- * real feed host, so pointing publish.url at the real host is enough to turn
- * updates on. Delete this constant once that happens.
+ * The reserved .invalid TLD (RFC 2606) can never resolve and can never collide
+ * with a real feed host.
  */
 const PLACEHOLDER_FEED_HOST = 'updates.invalid'
 
@@ -116,6 +160,24 @@ function autoCheckEnabled(): boolean {
   return process.env.HARNESS_UPDATE_AUTO !== '0'
 }
 
+/**
+ * Whether this build should be offered pre-releases.
+ *
+ * Every 0.x release is published as a GitHub pre-release, and electron-updater
+ * skips pre-releases by default — so a developer-preview client left on the
+ * default would check faithfully, find nothing, forever. It follows the channel
+ * it is already on: a 0.x or `-rc` build takes pre-releases because that is what
+ * exists for it, and a 1.0.0 build does not, so the first stable release does
+ * not silently opt its users into previews.
+ *
+ * Pure, so the rule is testable without a packaged app.
+ *
+ * @param version - the running application version.
+ */
+export function wantsPrereleases(version: string): boolean {
+  return version.startsWith('0.') || version.includes('-')
+}
+
 export function updateStatus(): UpdateStatus {
   return status
 }
@@ -124,8 +186,8 @@ export function updateStatus(): UpdateStatus {
  * Wire the updater up. Safe to call unconditionally: in a development build,
  * or without a feed, it only records why updates are unavailable.
  */
-export function initUpdater(options: { onChanged: () => void }): void {
-  onChanged = options.onChanged
+export function initUpdater(options: UpdaterHost): void {
+  host = options
   const currentVersion = app.getVersion()
 
   if (!app.isPackaged) {
@@ -150,6 +212,8 @@ export function initUpdater(options: { onChanged: () => void }): void {
   // Downloading is fine unattended; installing is not.
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.allowPrerelease = wantsPrereleases(currentVersion)
+  if (autoUpdater.allowPrerelease) log.info('updater: pre-releases accepted (this is a preview build)')
   if (feed.kind === 'override') {
     autoUpdater.setFeedURL({ provider: 'generic', url: feed.url })
     log.info(`updater: feed overridden to ${feed.url}`)
@@ -167,8 +231,12 @@ export function initUpdater(options: { onChanged: () => void }): void {
     setStatus({ phase: 'downloading', percent: Math.round(progress.percent) })
   })
   autoUpdater.on('update-downloaded', (info) => {
-    setStatus({ phase: 'ready', availableVersion: info.version, percent: 100 })
+    // A newly staged version starts from the standing behaviour again: a cancel
+    // applies to the version it was given for, not to updates in general.
+    autoUpdater.autoInstallOnAppQuit = true
+    setStatus({ phase: 'ready', availableVersion: info.version, percent: 100, installOnQuit: true })
     log.info(`updater: version ${info.version} staged; will install on request or on quit`)
+    offerInstall(info.version)
   })
   autoUpdater.on('error', (error) => {
     setStatus({ phase: 'error', message: error.message.slice(0, 300), checkedAt: new Date().toISOString() })
@@ -185,22 +253,75 @@ export function initUpdater(options: { onChanged: () => void }): void {
   }, FIRST_CHECK_DELAY_MS)
 }
 
+/** Offer a staged version to the user, at most once per version per run. */
+function offerInstall(version: string): void {
+  if (offeredVersion === version) return
+  offeredVersion = version
+  host?.offerInstall(version)
+}
+
 /**
  * Ask the feed whether a newer build exists. Never rejects: a failure becomes
  * the error phase so the tray and the bridge can show it.
+ *
+ * @param intent - `manual` when a person asked, which is the only case that
+ *   gets an answer they did not have to go looking for.
  */
-export async function checkForUpdates(): Promise<UpdateStatus> {
-  if (!configured) return status
+export async function checkForUpdates(intent: CheckIntent = 'auto'): Promise<UpdateStatus> {
+  if (!configured) {
+    if (intent === 'manual') host?.reportCheck(status)
+    return status
+  }
   // A staged update is the answer already; re-checking would restart the
-  // download for nothing.
-  if (status.phase === 'ready' || status.phase === 'downloading') return status
+  // download for nothing. Asking again is how someone who dismissed the prompt
+  // gets back to it, so the offer is repeated even though the check is not.
+  if (status.phase === 'ready' || status.phase === 'downloading') {
+    if (intent === 'manual') {
+      offeredVersion = undefined
+      if (status.phase === 'ready' && status.availableVersion !== undefined) {
+        offerInstall(status.availableVersion)
+      } else {
+        host?.reportCheck(status)
+      }
+    }
+    return status
+  }
   try {
     await autoUpdater.checkForUpdates()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     setStatus({ phase: 'error', message: message.slice(0, 300), checkedAt: new Date().toISOString() })
   }
+  // Reported after the check settles, not after the download: "found 0.1.7,
+  // downloading it now" is the honest answer at this point, and the download
+  // announces itself again when it is ready to act on.
+  if (intent === 'manual') host?.reportCheck(status)
   return status
+}
+
+/**
+ * Record what the user answered when offered a staged update.
+ *
+ * `cancel` is the only one that changes anything: it turns off the install that
+ * would otherwise happen at quit time. The download stays on disk, and the tray
+ * row still installs it on request — cancelling one prompt is not the same as
+ * refusing the version.
+ *
+ * @returns whether an install was started.
+ */
+export function answerInstall(answer: InstallAnswer): boolean {
+  if (answer === 'now') return installUpdate()
+  const version = status.availableVersion ?? 'the staged update'
+  if (answer === 'cancel') {
+    autoUpdater.autoInstallOnAppQuit = false
+    setStatus({ installOnQuit: false })
+    log.info(`updater: user cancelled ${version}; it stays downloaded and will not install by itself`)
+  } else {
+    autoUpdater.autoInstallOnAppQuit = true
+    setStatus({ installOnQuit: true })
+    log.info(`updater: user deferred ${version}; it installs on the next quit`)
+  }
+  return false
 }
 
 /**
@@ -221,4 +342,5 @@ export function disposeUpdater(): void {
   if (timer !== undefined) clearTimeout(timer)
   if (timer !== undefined) clearInterval(timer)
   timer = undefined
+  offeredVersion = undefined
 }

@@ -18,5 +18,20 @@
   "tray.update.ready": "重启并安装 {version}",
   "tray.update.error": "检查更新失败，点击重试",
   "tray.update.unsupported.notPackaged": "开发版不提供更新",
-  "tray.update.unsupported.noFeed": "未配置更新服务器"
+  "tray.update.unsupported.noFeed": "未配置更新服务器",
+  "update.ok": "知道了",
+  "update.check.title": "检查更新",
+  "update.upToDate.message": "Harness AI {version} 已是最新版本。",
+  "update.found.message": "发现新版本 Harness AI {version}。",
+  "update.found.detail": "正在后台下载，下载完成后会再通知你安装。",
+  "update.ready.title": "更新已就绪",
+  "update.ready.message": "Harness AI {version} 已下载完成，可以安装了。",
+  "update.ready.detail": "「立即重启并安装」会重启应用；「稍后」保留更新，下次退出时自动装上；「取消」保留已下载的文件但不再自动安装——你随时可以从托盘手动安装。",
+  "update.ready.restart": "立即重启并安装",
+  "update.ready.later": "稍后",
+  "update.failed.message": "检查更新失败。",
+  "update.unsupported.noFeed": "这个构建没有配置更新服务器。",
+  "update.unsupported.notPackaged": "开发构建不支持更新。",
+  "update.ready.cancel": "取消",
+  "tray.update.readyHeld": "安装 {version}（已取消自动安装）"
 }

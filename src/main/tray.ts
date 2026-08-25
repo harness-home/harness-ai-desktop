@@ -51,11 +51,17 @@ function updateMenuItem(): Electron.MenuItemConstructorOptions {
         enabled: false,
       }
     case 'ready':
-      return { label: t(locale(), 'tray.update.ready', { version }), click: () => { installUpdate() } }
+      // Two labels for one state: after a cancel the update is still here and
+      // still installable, but it will not install by itself, and the tray is
+      // where that has to be visible.
+      return {
+        label: t(locale(), status.installOnQuit === false ? 'tray.update.readyHeld' : 'tray.update.ready', { version }),
+        click: () => { installUpdate() },
+      }
     case 'error':
-      return { label: t(locale(), 'tray.update.error'), click: () => { void checkForUpdates() } }
+      return { label: t(locale(), 'tray.update.error'), click: () => { void checkForUpdates('manual') } }
     default:
-      return { label: t(locale(), 'tray.update.check'), click: () => { void checkForUpdates() } }
+      return { label: t(locale(), 'tray.update.check'), click: () => { void checkForUpdates('manual') } }
   }
 }
 

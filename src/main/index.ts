@@ -15,7 +15,8 @@ import { maskSecrets } from './mask-secrets'
 import { pluginRegistry } from './runtime-config'
 import { currentStage, enterStage, setStageLogger, startupTimeline } from './startup-stage'
 import { createTray, updateTray } from './tray'
-import { disposeUpdater, initUpdater } from './updater'
+import { answerInstall, disposeUpdater, initUpdater } from './updater'
+import { dialogLocale, offerInstall, reportCheck, type UpdatePromptHost } from './update-prompt'
 
 
 /** Health gate for the boot in flight; stage transitions tick it too. */
@@ -315,7 +316,18 @@ if (!locked) {
     })
     // Updates are a shell concern, independent of the runtime: a client whose
     // runtime will not start must still be able to update itself out of it.
-    initUpdater({ onChanged: () => updateTray() })
+    // The updater owns update state; the shell owns the window, so the two
+    // dialogs it is allowed to show are wired in from here.
+    const promptHost: UpdatePromptHost = {
+      window: () => (mainWindow !== undefined && !mainWindow.isDestroyed() ? mainWindow : undefined),
+      locale: () => dialogLocale([app.getLocale()]),
+      answer: (answer) => { answerInstall(answer) },
+    }
+    initUpdater({
+      onChanged: () => updateTray(),
+      offerInstall: (version) => { offerInstall(promptHost, version) },
+      reportCheck: (status) => { reportCheck(promptHost, status) },
+    })
 
     app.on('activate', () => {
       showMainWindow()

@@ -57,8 +57,10 @@ export function registerUpdateRoutes(ctx: Context): void {
       send(res, 200, { update: updateStatus() })
     })
 
+    // 'auto': the caller gets the answer as JSON and renders it itself, so a
+    // dialog here would be the same news twice.
     route('/desktop/update/check', 'POST', async (_req, res) => {
-      send(res, 200, { update: await checkForUpdates() })
+      send(res, 200, { update: await checkForUpdates('auto') })
     })
 
     route('/desktop/update/install', 'POST', (_req, res) => {

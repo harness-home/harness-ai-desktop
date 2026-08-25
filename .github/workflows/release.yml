@@ -1,0 +1,111 @@
+# Tag -> installer. Pushing a `v<version>` tag builds the Windows installer and
+# publishes it on a GitHub Release.
+#
+#   git tag v0.1.5 && git push origin v0.1.5
+#
+# The tag must match the version in package.json; a mismatch fails the job
+# before anything is built, because a release named after a version it does not
+# contain is worse than no release.
+#
+# Actions are pinned to commit SHAs — see the note in ci.yml for how to update.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the release and upload the installer
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/v
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the tag against package.json
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="${GITHUB_REF_NAME}"
+          echo "package.json=$version tag=$tag"
+          if [ "$tag" != "v$version" ] && [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "::error::tag $tag does not match package.json version $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+        id: version
+
+      # A release is a promise. Ship only what passes the same gate as main.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Package
+        run: pnpm dist:win
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: harness-ai-windows-x64
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish the release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          notes=$(mktemp)
+          {
+            echo "### Harness AI ${GITHUB_REF_NAME} — Windows x64"
+            echo
+            echo "The desktop client hosts the DeepSeek Harness runtime in-process on loopback."
+            echo
+            echo "**This installer is not code-signed.** Windows SmartScreen will warn on first run;"
+            echo "verify the SHA-256 below against the one printed in the build log before installing."
+            echo
+            echo '```'
+            ( cd dist && sha256sum *.exe ) || ( cd dist && certutil -hashfile *.exe SHA256 )
+            echo '```'
+            echo
+            echo "\`latest.yml\` and the blockmap are attached for the in-app updater."
+          } > "$notes"
+
+          prerelease=""
+          case "$version" in 0.*) prerelease="--prerelease" ;; esac
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Harness AI $GITHUB_REF_NAME" \
+            --notes-file "$notes" \
+            $prerelease \
+            dist/*.exe dist/*.blockmap dist/latest.yml

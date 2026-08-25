@@ -31,7 +31,7 @@
 The agent runtime runs **inside this app, on your machine** — in the Electron main process itself, bound to loopback, with no inbound port. The client adds what an agent runtime does not ship: an account, hosted session history that follows you to your phone, remote approvals, and a plugin market with a supply-chain gate in front of it.
 
 > [!IMPORTANT]
-> **Developer preview.** The upstream runtime is a developer preview and states that breaking changes are expected; this client tracks it at a pinned version. No installers are published yet — see [Building from source](#building-from-source).
+> **Developer preview.** The upstream runtime is a developer preview and states that breaking changes are expected; this client tracks it at a pinned version. Installers are on the [Releases](https://github.com/harness-home/harness-ai-desktop/releases) page — unsigned, each carrying a SHA-256 to verify against — or [build from source](#building-from-source).
 
 ## How it works
 
@@ -168,7 +168,7 @@ scripts/             Icon generation, packaging checks, smoke and acceptance dri
 | | |
 | --- | --- |
 | ✅ Shipped | In-process runtime hosting · account and device identity · hosted session sync · attachment sync · remote approvals and queued prompts · plugin market with the install gate · Windows packaging |
-| 🚧 In progress | Published installers and a stable update feed |
+| 🚧 In progress | A stable update feed — releases ship `latest.yml`, but the feed host stays a sentinel until the distribution location is settled |
 | 📋 Planned | macOS packaging and code signing · a second harness behind the same adapter, if and when one earns its place |
 
 ## Contributing

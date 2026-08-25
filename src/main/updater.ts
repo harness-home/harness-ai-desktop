@@ -66,12 +66,16 @@ function setStatus(patch: Partial<UpdateStatus>): void {
 
 /**
  * Host the packaged feed points at while the distribution location is still
- * open (workspace ledger #14/#30). A build carrying only this placeholder has
- * no real feed: saying so beats letting every client sit in a permanent
- * "update check failed", which reads like a defect rather than a pending
- * decision. Delete this constant when the real host exists.
+ * open (workspace ledger #31). A build carrying only this placeholder has no
+ * real feed: saying so beats letting every client sit in a permanent "update
+ * check failed", which reads like a defect rather than a pending decision.
+ *
+ * The sentinel uses the reserved .invalid TLD (RFC 2606) rather than a domain
+ * anyone could own: it can never resolve, and it can never collide with the
+ * real feed host, so pointing publish.url at the real host is enough to turn
+ * updates on. Delete this constant once that happens.
  */
-const PLACEHOLDER_FEED_HOST = 'download.harness-ai.dev'
+const PLACEHOLDER_FEED_HOST = 'updates.invalid'
 
 /** What feed, if any, this client should use. */
 export type FeedChoice =

@@ -8,7 +8,7 @@ const { resolveFeed } = await import('./updater')
 
 const PACKAGED_PLACEHOLDER = [
   'provider: generic',
-  'url: https://download.harness-ai.dev/desktop/win-x64',
+  'url: https://updates.invalid/desktop/win-x64',
   'channel: latest',
 ].join('\n')
 
@@ -53,6 +53,17 @@ describe('resolveFeed', () => {
     // Otherwise every client would sit in a permanent update-check failure,
     // which reads as a defect rather than a decision nobody has made yet.
     expect(resolveFeed(undefined, PACKAGED_PLACEHOLDER)).toEqual({ kind: 'none' })
+  })
+
+  it('accepts a feed on the real site domain', () => {
+    // Guards the sentinel swap: the placeholder must not match the host the
+    // feed will actually live on once distribution is set up (ledger #31).
+    const onSiteDomain = [
+      'provider: generic',
+      'url: https://download.harnessai.io/desktop/win-x64',
+      'channel: latest',
+    ].join('\n')
+    expect(resolveFeed(undefined, onSiteDomain)).toEqual({ kind: 'packaged' })
   })
 
   it('reports no feed when the build carries no config', () => {

@@ -21,12 +21,14 @@ afterPack: ./scripts/verify-packaged.cjs
 # Update feed. This block is what makes electron-builder write app-update.yml
 # into the packaged resources and emit latest.yml beside the installer, which
 # together are the update manifest electron-updater reads. The host below is a
-# placeholder until the distribution location is decided (workspace ledger
-# #14/#30); a deployment or a test can point the client elsewhere at runtime
-# with HARNESS_UPDATE_FEED_URL, without rebuilding.
+# sentinel until the distribution location is decided (workspace ledger #31);
+# a deployment or a test can point the client elsewhere at runtime with
+# HARNESS_UPDATE_FEED_URL, without rebuilding.
 publish:
   - provider: generic
-    url: https://download.harness-ai.dev/desktop/win-x64
+    # Sentinel host until the distribution location is decided (ledger #31);
+    # .invalid can never resolve, so no client ever fetches it.
+    url: https://updates.invalid/desktop/win-x64
     channel: latest
 # Custom URL scheme: the public website hands a plugin catalog id to the
 # installed client with `harness-ai://install?listing=<id>`. The app also claims

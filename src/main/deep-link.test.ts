@@ -31,7 +31,7 @@ describe('parseDeepLink', () => {
   })
 
   it('rejects another scheme', () => {
-    expect(parseDeepLink('https://harness-ai.dev/en/plugins')).toBeNull()
+    expect(parseDeepLink('https://harnessai.io/en/plugins')).toBeNull()
   })
 
   it('rejects an unknown action', () => {

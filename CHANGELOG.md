@@ -7,7 +7,15 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
-## [Unreleased]
+## [0.1.8] — 2026-08-25
+
+### Changed
+
+- **The client has a new icon.** The taskbar, the tray and the installer now
+  show a white whale on DeepSeek blue, in place of the flat lettermark — the
+  runtime’s own figure, inverted. Every size is drawn from the outline rather
+  than shrunk from one bitmap, so the 16-pixel tray copy is a rendering of the
+  mark and not a blur of it.
 
 ### Fixed
 
@@ -178,6 +186,7 @@ warn on first run; the release notes carry the SHA-256 to check against.
   build output — so two files had never been committed and a fresh clone could
   not typecheck.
 
+[0.1.8]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.8
 [0.1.7]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.7
 [0.1.6]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.6
 [0.1.5]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.5

@@ -20,6 +20,17 @@ breaking and upgrade the clients and the service together.
   recorded is still refused. A malformed file falls back to the defaults and
   says why in the log; `HARNESS_PLUGIN_REGISTRY` overrides it for one run.
 
+### Changed
+
+- **Installation is about a third faster**, measured at 299 s before and 210 s
+  after on the same machine, because the installer now writes 12,371 files
+  instead of 19,691. Source maps and type declarations are 7,285 of those files
+  and no packaged client ever loads them — only a debugger and a compiler do,
+  and neither is present in an installed app. The 53 unused Chromium language
+  packs are gone too (this client ships two UI languages), which is 45 MB but,
+  measurably, no time at all: install time is paid per file, not per megabyte.
+  The download is 139.8 MB → 123.1 MB.
+
 ## [0.1.5] — 2026-08-25
 
 First public release, covering everything built since the shell was scaffolded.

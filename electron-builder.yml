@@ -1,7 +1,17 @@
-# Packaging (Win x64 first). asar is off: the dsh runtime resolves its plugin
-# closure through real node_modules paths (ESM imports, the profile symlink
-# farm, native modules), which an asar archive cannot provide. Revisit asar
-# precision together with auto-update (workspace ledger #14).
+# Packaging (Win x64 first). asar is off because the dsh runtime resolves its
+# plugin closure through real node_modules paths — ESM imports, the profile
+# symlink farm, native modules.
+#
+# Measured 2026-08-25, and the assumption behind that decision did not survive:
+# a spike build with asar on (`-c.asar=true -c.asarUnpack="**/*.{node,exe,dll}"`)
+# booted from a real installation, all 156 fibers, and installs in 12 s against
+# 210 s for this configuration — same bytes on disk, 105 files instead of 12,371.
+# ESM does load from asar on Electron 43. Before it can be turned on here:
+# verify-packaged.cjs has to read the archive's manifest instead of stat()ing
+# paths (that gate exists because of a real escape, and asar would silently
+# retire it), a market install has to be proven to work with pnpm inside the
+# archive, and a real session has to exercise node-pty, ripgrep and sharp from
+# app.asar.unpacked. See AGENTS.md, "安装耗时的成本模型".
 appId: ai.harness.desktop
 productName: Harness AI
 asar: false
@@ -17,6 +27,22 @@ files:
   - build/icon.png
   - package.json
   - THIRD_PARTY_NOTICES.md
+  # Install time is paid per file, not per megabyte: measured on this machine,
+  # 19,688 files take ~299 s to install, and removing 45 MB spread over 53 files
+  # changed nothing. Source maps and type declarations are a third of the file
+  # count and are never loaded by a running client — no resolver looks for them,
+  # only a debugger and a compiler do, and neither is present in a packaged app.
+  - '!**/*.map'
+  - '!**/*.d.ts'
+  - '!**/*.d.mts'
+  - '!**/*.d.cts'
+# Chromium ships one .pak per language: 55 files, 46 MB. This product ships two
+# UI languages (zh-CN and en-US, workspace ledger #11) and Chromium falls back
+# to en-US for every other locale, so the remaining 53 are payload the installer
+# writes and nothing ever reads.
+electronLanguages:
+  - zh-CN
+  - en-US
 # Post-install configuration. Deliberately outside resources/app, beside the
 # executable, because the point of it is that someone can find and edit it on a
 # machine that is already installed — a network that cannot reach the default

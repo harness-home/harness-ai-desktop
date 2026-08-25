@@ -79,6 +79,27 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - `electron-builder.yml` 的 `publish.url` 目前是占位域名（分发位置未定，台账 #14/#30）；`dist:win` 带 `--publish never`，本地打包不会真的上传。
 - **验证方式**（已实测）：`-c.directories.output=dist/next` 打一个更高版本 → 静态服务器起 feed → 低版本 `win-unpacked` 带 `HARNESS_UPDATE_FEED_URL` 启动 → 应看到 checking → available → downloading → ready。差分下载会因为 feed 里没有旧版 blockmap 而回落全量，这是预期的。
 
+## 安装耗时的成本模型（2026-08-25 实测，别再凭直觉优化体积）
+
+同一台机器、同一个 0.1.5、每轮之间完整卸载重装、两组交替各跑 2 轮（`baseline → trimmed → trimmed → baseline`，避免运行顺序偏袒某一组）：
+
+| 构建 | 安装包 | 铺盘文件数 | 铺盘体积 | 安装耗时 |
+| --- | --- | --- | --- | --- |
+| 原版 | 139.8 MB | 19,691 | 507 MB | 299.3s |
+| 只砍 53 个语言包（−45 MB） | 131.4 MB | 19,655 | 459 MB | 330.6s |
+| 再砍 `.map` + `.d.ts`（−7,285 文件） | 123.1 MB | 12,371 | 420 MB | 210.2s |
+| asar spike | 115.0 MB | **105** | 423.1 MB | **12.3s** |
+
+**结论：安装成本按文件数付，不按字节付。** 砍掉 45 MB（53 个大文件）耗时没动；asar 铺盘字节数反而比上一档多 3 MB，安装却快 17 倍。约 15ms/文件是这台机器上的经验系数（NSIS 逐文件创建 + Defender 逐文件扫描）。
+
+- **别再提「减小安装包体积」当性能改进**——除非它同时大幅减少文件数。下载大小和安装耗时是两件事，混着说会把人带沟里。
+- 单次测量不可信：这台机器的本底噪声很大（同一构建两轮实测出现过 250s vs 170s、296s vs 365s）。**小于 20% 的差异必须多轮交替才能下结论**，一轮就下结论等于编。
+- 复现方式见 `scripts/`（测量脚本在 scratchpad，不入库）：静默安装 `/S`，**完成信号取「卸载器已写出 + 目录大小不再增长」，不要等安装进程退出**——它在拷贝结束后仍存活很久，等它退出量到的是别的东西。
+
+**同一条成本模型也解释「装完第一次打开很卡」**：装完立刻冷启，12,371 文件那版 ready 用了 **38.8s**（`HostResolvedRootInclude` 独占 28.0s——导入整棵模块树，逐文件冷读 + 首次扫描），第二次热启 6.6s；同样刚装完冷启的 asar 版是 **3.4s**。文件数不只买安装时间，也买首次启动时间，而首次启动正是用户形成印象的那一次。（冷启各测 1 次，量级差异可信，精确值别当结论。）
+
+**asar 的结论**：`asar: true` + `asarUnpack: "**/*.{node,exe,dll}"` 的 spike **能从真安装目录启动**（156 fiber 齐，ready 3.2s），ESM 从 asar 内 import 在 Electron 43 上可用，`healProfilesModuleFallback` 建的悬空符号链接也没挡住启动。切换前必须先补三件事：① `verify-packaged.cjs` 改成读 asar 清单（现在它 stat 实际路径，asar 之后会**全绿地失效**，而这道闸门是真实事故留下的）；② 市场装插件（pnpm 在 asar 内）实测；③ 真实会话跑一遍 node-pty / ripgrep / sharp。
+
 ## 安装后可改的配置（2026-08-25）
 
 `src/main/runtime-config.ts` + 安装目录下的 `harness-ai.config.json`（模板在 `config/`，经 `electron-builder.yml` 的 `extraFiles` 落到 exe 同级；`verify-packaged.cjs` 会检查它在不在）。

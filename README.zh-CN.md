@@ -107,6 +107,18 @@ flowchart LR
 
 发现安全问题请看 [SECURITY.md](https://github.com/harness-home/.github/blob/main/SECURITY.md)。
 
+## 安装后的配置
+
+有些设置属于网络环境而不属于某个人，改错了也不该重新出一版客户端。这类设置放在安装目录下、与 `Harness AI.exe` 同级的 **`harness-ai.config.json`** 里。改完重启客户端，日志里的 `config: plugin registry …` 会写明实际生效的值。
+
+| 键 | 默认值 | 用途 |
+| --- | --- | --- |
+| `pluginRegistry` | `https://registry.npmjs.org/` | 插件市场解析和下载插件所用的 npm registry。公共 registry 慢或不可达时，改指向它的镜像即可，例如 `https://registry.npmmirror.com/`。 |
+
+**指向镜像不会降低市场的门槛**：完整性复核会从当前配置的这个 registry 读取，也就是从 tarball 真正会被下载的地方读——镜像给出的字节与目录记录的不一致就直接拒绝，而不是照单全收。但它必须是公共 registry 的镜像：一个用同样的包名提供自家包的私有 registry 过不了这道校验。
+
+文件写坏了也不会让客户端起不来：该值被丢弃、原因进日志、回落到默认值。`HARNESS_PLUGIN_REGISTRY` 环境变量可以对单次运行覆盖文件里的值。**应用更新会把这个文件重写回随包默认值**，更新后需要重新改一遍。
+
 ## 从源码构建
 
 **前置条件** —— Node `^22.19.0 || >=24`、pnpm 11、Windows x64（目前唯一的打包目标），以及一个 DeepSeek API Key（凡是要接模型的环节都需要）。

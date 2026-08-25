@@ -10,7 +10,13 @@
 // It catches the case a version pin alone does not: a version republished under
 // a stolen publish token keeps its number and changes its bytes.
 
-/** The only registry the installer will talk to. */
+/**
+ * Registry this module talks to when the caller names none. The client can be
+ * pointed at a mirror after installation (`runtime-config.ts`), which is why
+ * the fetcher below is built per registry rather than bound to this constant:
+ * the packument has to come from the same place the tarball will, or the
+ * comparison above proves nothing about what pnpm is going to download.
+ */
 export const REGISTRY_URL = 'https://registry.npmjs.org'
 
 const REQUEST_TIMEOUT_MS = 20_000
@@ -30,16 +36,22 @@ interface Packument {
 /** Registry lookup, injectable so the verification logic is testable offline. */
 export type PackumentFetcher = (packageName: string) => Promise<Packument>
 
-export async function fetchPackument(packageName: string): Promise<Packument> {
-  // Scoped names keep their '@' in a registry path; only the '/' is escaped.
-  const path = encodeURIComponent(packageName).replace('%40', '@')
-  const response = await fetch(`${REGISTRY_URL}/${path}`, {
-    headers: { accept: 'application/json' },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
-  if (!response.ok) throw new Error(`registry returned ${String(response.status)}`)
-  return (await response.json()) as Packument
+/** Packument lookup against one registry. */
+export function createPackumentFetcher(registryUrl: string): PackumentFetcher {
+  const base = registryUrl.replace(/\/+$/, '')
+  return async (packageName: string): Promise<Packument> => {
+    // Scoped names keep their '@' in a registry path; only the '/' is escaped.
+    const path = encodeURIComponent(packageName).replace('%40', '@')
+    const response = await fetch(`${base}/${path}`, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`registry returned ${String(response.status)}`)
+    return (await response.json()) as Packument
+  }
 }
+
+export const fetchPackument: PackumentFetcher = createPackumentFetcher(REGISTRY_URL)
 
 /**
  * Confirm the registry still serves the exact artifact the catalog recorded.

@@ -49,6 +49,14 @@ module.exports = async function verifyPackaged(context) {
     throw new Error(`packaged runtime is incomplete; missing:\n  ${missing.join('\n  ')}`)
   }
 
+  // Beside the executable rather than inside resources/app: this is the file a
+  // person edits on an installed machine (src/main/runtime-config.ts). Shipping
+  // a build without it would leave nothing to edit and no sign that there
+  // should have been.
+  if (!existsSync(join(context.appOutDir, 'harness-ai.config.json'))) {
+    throw new Error('packaged app is missing harness-ai.config.json beside the executable')
+  }
+
   const { runtimeClosure } = await import('./runtime-closure.mjs')
   const closure = runtimeClosure()
   const missingModules = closure.filter((name) =>

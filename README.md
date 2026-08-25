@@ -107,6 +107,28 @@ Single-instance lock · crash audit of the previous run · secret-masked file lo
 
 Found a vulnerability? See [SECURITY.md](https://github.com/harness-home/.github/blob/main/SECURITY.md).
 
+## Configuring an installed client
+
+Some settings belong to a network rather than to a person, and being wrong about
+them should not require a new build. Those live in **`harness-ai.config.json`**,
+next to `Harness AI.exe` in the installation directory. Edit it, restart the
+client, and the log line `config: plugin registry …` states what took effect.
+
+| Key | Default | What it is for |
+| --- | --- | --- |
+| `pluginRegistry` | `https://registry.npmjs.org/` | The npm registry the plugin market resolves and downloads from. Where the public registry is slow or unreachable, point it at a mirror — `https://registry.npmmirror.com/`, for instance. |
+
+Pointing at a mirror does not lower the bar the market enforces: the integrity
+re-check reads from the same registry the tarball will come from, so a mirror
+that serves different bytes than the catalog recorded is refused rather than
+trusted. It must be a mirror of the public registry, though — a registry that
+serves its own packages under the same names cannot satisfy that check.
+
+A malformed file never stops the client: the value is dropped, the reason is
+logged, and the default applies. `HARNESS_PLUGIN_REGISTRY` overrides the file
+for a single run. Installing an update rewrites the file with the shipped
+defaults, so re-apply local changes afterwards.
+
 ## Building from source
 
 **Prerequisites** — Node `^22.19.0 || >=24`, pnpm 11, Windows x64 (the only packaged target today), and a DeepSeek API key for anything that talks to a model.

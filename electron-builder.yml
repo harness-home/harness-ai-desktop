@@ -17,6 +17,14 @@ files:
   - build/icon.png
   - package.json
   - THIRD_PARTY_NOTICES.md
+# Post-install configuration. Deliberately outside resources/app, beside the
+# executable, because the point of it is that someone can find and edit it on a
+# machine that is already installed — a network that cannot reach the default
+# npm registry is not a reason to rebuild the client. Read by
+# src/main/runtime-config.ts; an update overwrites it with these defaults.
+extraFiles:
+  - from: config/harness-ai.config.json
+    to: harness-ai.config.json
 afterPack: ./scripts/verify-packaged.cjs
 # Update feed. This block is what makes electron-builder write app-update.yml
 # into the packaged resources and emit latest.yml beside the installer, which

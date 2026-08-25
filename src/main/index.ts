@@ -12,6 +12,7 @@ import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { createBootWatchdog } from './boot-watchdog'
 import { maskSecrets } from './mask-secrets'
+import { pluginRegistry } from './runtime-config'
 import { currentStage, enterStage, setStageLogger, startupTimeline } from './startup-stage'
 import { createTray, updateTray } from './tray'
 import { disposeUpdater, initUpdater } from './updater'
@@ -287,6 +288,10 @@ if (!locked) {
     })
     enterStage('app-ready')
     log.info(`shell starting (v${app.getVersion()}, electron ${process.versions.electron})`)
+    // Resolve the installation's config here rather than at first use, so every
+    // run states what it read. A support report starts from this line, and a
+    // client that never opened the market would otherwise never print it.
+    pluginRegistry()
     auditPreviousRun(dshVersion())
     // Deployment endpoint is still open (ledger #25); default to the local
     // dev server until one exists.

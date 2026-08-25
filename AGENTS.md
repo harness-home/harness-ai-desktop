@@ -79,6 +79,17 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - `electron-builder.yml` 的 `publish.url` 目前是占位域名（分发位置未定，台账 #14/#30）；`dist:win` 带 `--publish never`，本地打包不会真的上传。
 - **验证方式**（已实测）：`-c.directories.output=dist/next` 打一个更高版本 → 静态服务器起 feed → 低版本 `win-unpacked` 带 `HARNESS_UPDATE_FEED_URL` 启动 → 应看到 checking → available → downloading → ready。差分下载会因为 feed 里没有旧版 blockmap 而回落全量，这是预期的。
 
+## 安装后可改的配置（2026-08-25）
+
+`src/main/runtime-config.ts` + 安装目录下的 `harness-ai.config.json`（模板在 `config/`，经 `electron-builder.yml` 的 `extraFiles` 落到 exe 同级；`verify-packaged.cjs` 会检查它在不在）。
+
+- **收什么进来的判据**：属于**网络环境**、装完才发现不对、且用户自己能判断的设置。属于人的偏好进 dsh settings，属于代码的常量留在代码里。**别把这个文件做成第二套设置系统。**
+- **优先级**：环境变量 > 配置文件 > 内置默认（与 `updater.ts` 的 feed 解析同序）。纯函数 `resolveRegistry()` 单测钉住优先级与拒绝规则，取值和 IO 分开。
+- **绝不抛进启动**：文件缺失/读不了/JSON 坏了/类型不对，一律回落默认并 `log.warn` 说明原因。
+- **解析点在启动，不在首次使用**：`index.ts` 一开机就调 `pluginRegistry()`，每次运行都打一行 `config: plugin registry <url> (<来源>)`。报障先看这行——它不能取决于用户有没有点开过市场。
+- **registry 换镜像不降低供应链门槛**：packument 复核必须和 tarball 走同一个 registry（`createPackumentFetcher(registry)`），镜像给的字节与目录记录不符即拒绝。**改这块时别把复核写回硬编码 npmjs**——那样复核的就不是将要下载的那份了。profile 的 `.npmrc` 每次安装都重写 registry 行（配置改了之后旧行会盖过命令行参数）。
+- **已知取舍**：更新会用随包默认值覆盖这个文件（`extraFiles` 的固有行为），README 两版都写明了。想让它跨更新存活，得换成 userData 副本或安装期保留，届时再定。
+
 ## 本仓库红线摘要
 
 - dsh 永远 loopback，绝不对网络暴露；远程能力一律经 harness-ai-server 中转（根红线 #4）。

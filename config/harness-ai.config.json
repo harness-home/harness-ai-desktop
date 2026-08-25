@@ -1,0 +1,26 @@
+{
+  "//": [
+    "Harness AI desktop configuration.",
+    "",
+    "This file is read once when the client starts, so edit it and then restart",
+    "the client. Anything unrecognised here is ignored, and a value this client",
+    "cannot use is reported in the log and replaced by the default rather than",
+    "stopping the client from starting.",
+    "",
+    "pluginRegistry",
+    "  The npm registry the plugin market resolves and downloads plugins from.",
+    "  Default: https://registry.npmjs.org/ . Where that is slow or unreachable,",
+    "  a mirror of it works, for example https://registry.npmmirror.com/ .",
+    "  Every install is still checked against the integrity hash the catalog",
+    "  recorded for that exact version, and the check reads from whichever",
+    "  registry is configured here — so a mirror serving different bytes is",
+    "  refused, not trusted. Point this only at a mirror of the public registry;",
+    "  a registry that serves its own packages under the same names cannot",
+    "  satisfy the check.",
+    "  The HARNESS_PLUGIN_REGISTRY environment variable overrides this value.",
+    "",
+    "Note: installing an application update rewrites this file with the shipped",
+    "defaults. Re-apply your changes after an update."
+  ],
+  "pluginRegistry": "https://registry.npmjs.org/"
+}

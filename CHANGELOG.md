@@ -7,6 +7,19 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [Unreleased]
+
+### Added
+
+- **`harness-ai.config.json`, beside the executable.** Settings that belong to a
+  network rather than to a person can now be corrected on an installed machine
+  instead of in a new build. The first of them is `pluginRegistry`: where the
+  public npm registry is slow or unreachable, the plugin market can be pointed
+  at a mirror of it. The integrity re-check reads from the same registry the
+  tarball comes from, so a mirror serving different bytes than the catalog
+  recorded is still refused. A malformed file falls back to the defaults and
+  says why in the log; `HARNESS_PLUGIN_REGISTRY` overrides it for one run.
+
 ## [0.1.5] — 2026-08-25
 
 First public release, covering everything built since the shell was scaffolded.

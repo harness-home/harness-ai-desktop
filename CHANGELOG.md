@@ -7,6 +7,16 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [0.1.9] — 2026-08-25
+
+### Changed
+
+- **Nothing, on purpose.** This release carries no code changes at all: it
+  exists so the update path can be watched running end to end against a real
+  feed — an installed client one version behind should find it by itself,
+  download it, and ask what to do with it. If you are already on 0.1.8 there is
+  nothing here for you but that check.
+
 ## [0.1.8] — 2026-08-25
 
 ### Changed
@@ -186,6 +196,7 @@ warn on first run; the release notes carry the SHA-256 to check against.
   build output — so two files had never been committed and a fresh clone could
   not typecheck.
 
+[0.1.9]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.9
 [0.1.8]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.8
 [0.1.7]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.7
 [0.1.6]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.6

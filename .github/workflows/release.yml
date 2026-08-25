@@ -44,7 +44,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Check the tag against package.json
+      # Both gates run before anything is built: a release named after a version
+      # it does not contain, or shipped with no word on what changed, is worse
+      # than no release — and finding that out after a ten-minute package step
+      # wastes the run.
+      - name: Check the tag and the changelog
+        id: version
         shell: bash
         run: |
           version=$(node -p "require('./package.json').version")
@@ -54,8 +59,33 @@ jobs:
             echo "::error::tag $tag does not match package.json version $version"
             exit 1
           fi
+
+          # Everything between this version's heading and the next one. Matched
+          # with index() rather than a regex: the heading contains [ and ], and
+          # a single lost backslash turns "[0.1.5]" into a character class that
+          # silently matches nothing — an empty changelog, not an error.
+          section="$RUNNER_TEMP/changelog-section.md"
+          awk -v want="## [$version]" '
+            index($0, want) == 1 { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
+            # Skip link-reference definitions: they belong to the file, and in
+            # release notes they render as nothing at all.
+            inside && index($0, "[") == 1 && index($0, "]: ") > 0 { next }
+            inside { print }
+          ' CHANGELOG.md > "$section"
+          # Drop the blank lines the split leaves at both ends.
+          sed -i -e '/./,$!d' "$section"
+          while [ -s "$section" ] && [ -z "$(tail -n 1 "$section")" ]; do
+            sed -i -e '$d' "$section"
+          done
+
+          if [ ! -s "$section" ]; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section"
+            exit 1
+          fi
+          echo "changelog section: $(wc -l < "$section") lines"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-        id: version
+          echo "section=$section" >> "$GITHUB_OUTPUT"
 
       # A release is a promise. Ship only what passes the same gate as main.
       - name: Typecheck
@@ -87,18 +117,30 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           notes=$(mktemp)
           {
-            echo "### Harness AI ${GITHUB_REF_NAME} — Windows x64"
+            echo "**Harness AI for Windows x64** — the desktop client hosts the DeepSeek Harness"
+            echo "runtime in-process, on loopback."
             echo
-            echo "The desktop client hosts the DeepSeek Harness runtime in-process on loopback."
+            echo "## What changed"
             echo
-            echo "**This installer is not code-signed.** Windows SmartScreen will warn on first run;"
-            echo "verify the SHA-256 below against the one printed in the build log before installing."
+            cat "${{ steps.version.outputs.section }}"
+            echo
+            echo "[Full commit log](https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_REF_NAME}) · [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md)"
+            echo
+            echo "## Install"
+            echo
+            echo "Download \`HarnessAI-${version}-x64-Setup.exe\` and run it."
+            echo
+            echo "> [!IMPORTANT]"
+            echo "> **This installer is not code-signed.** Windows SmartScreen will warn on first run."
+            echo "> Verify the SHA-256 below before installing — in PowerShell:"
+            echo "> \`Get-FileHash .\\HarnessAI-${version}-x64-Setup.exe -Algorithm SHA256\`"
             echo
             echo '```'
             ( cd dist && sha256sum *.exe ) || ( cd dist && certutil -hashfile *.exe SHA256 )
             echo '```'
             echo
-            echo "\`latest.yml\` and the blockmap are attached for the in-app updater."
+            echo "\`latest.yml\` and the blockmap are attached for the in-app updater; you do not"
+            echo "need to download them by hand."
           } > "$notes"
 
           prerelease=""

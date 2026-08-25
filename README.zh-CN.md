@@ -143,7 +143,7 @@ pnpm dev              # 先构建仓内插件，再启动壳
 git tag v0.1.5 && git push origin v0.1.5
 ```
 
-标签必须与 `package.json` 里的 `version` 一致，对不上会在开始构建之前失败。安装包**未做代码签名**——SmartScreen 会告警，发布说明里带了 SHA-256 供核对。
+标签必须与 `package.json` 里的 `version` 一致，且 [CHANGELOG.md](CHANGELOG.md) 里必须有对应版本的条目——两项都在开始构建之前检查，那段条目会直接成为发布说明。安装包**未做代码签名**——SmartScreen 会告警，发布说明里带了 SHA-256 供核对。
 
 ## 目录结构
 

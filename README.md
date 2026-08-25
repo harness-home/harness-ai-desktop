@@ -143,7 +143,7 @@ A release is a tag. Pushing `v<version>` runs the same gate, packages the NSIS i
 git tag v0.1.5 && git push origin v0.1.5
 ```
 
-The tag must match `version` in `package.json`; a mismatch fails the job before anything is built. Installers are **not code-signed** — SmartScreen will warn, and the release notes carry the SHA-256 to check against.
+The tag must match `version` in `package.json`, and [CHANGELOG.md](CHANGELOG.md) must carry a section for it — both are checked before anything is built, and that section becomes the release notes. Installers are **not code-signed** — SmartScreen will warn, and the release notes carry the SHA-256 to check against.
 
 ## Project layout
 

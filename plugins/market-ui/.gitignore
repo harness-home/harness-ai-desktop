@@ -1,1 +1,4 @@
-lib/
+# Build output only. Anchored with a leading slash on purpose: a bare `lib/`
+# also matches src/client/lib/, which is source — that is how two real files
+# went unversioned and only a clean clone could show it.
+/lib/

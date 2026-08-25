@@ -21,7 +21,7 @@ env:
   # The repository .npmrc routes binary downloads through a CN mirror, because
   # GitHub Releases is unreachable from the maintainer's network. On a GitHub
   # runner the opposite holds, so take the upstream sources back here.
-  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/v
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
   ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
 
 jobs:

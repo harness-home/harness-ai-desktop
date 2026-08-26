@@ -132,6 +132,7 @@ client, and the log line `config: plugin registry …` states what took effect.
 | Key | Default | What it is for |
 | --- | --- | --- |
 | `pluginRegistry` | `https://registry.npmjs.org/` | The npm registry the plugin market resolves and downloads from. Where the public registry is slow or unreachable, point it at a mirror — `https://registry.npmmirror.com/`, for instance. |
+| `serverUrl` | `https://api.harnessai.io` | The Harness AI service this client signs in to and syncs hosted sessions with. Self-hosted deployments point it at their own server; running your own service does not require your own build of the client. |
 
 Pointing at a mirror does not lower the bar the market enforces: the integrity
 re-check reads from the same registry the tarball will come from, so a mirror

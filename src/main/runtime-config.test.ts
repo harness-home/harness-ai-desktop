@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG_FILENAME, DEFAULT_PLUGIN_REGISTRY, resolveRegistry } from './runtime-config'
+import {
+  CONFIG_FILENAME,
+  DEFAULT_PLUGIN_REGISTRY,
+  DEFAULT_SERVER_URL,
+  DEV_SERVER_URL,
+  resolveRegistry,
+  resolveServerUrl,
+} from './runtime-config'
 
 // The config file is edited by hand on an installed machine, so every case here
 // is a file someone typed rather than a file a program wrote. The rule the
@@ -66,5 +73,56 @@ describe('resolveRegistry', () => {
       url: DEFAULT_PLUGIN_REGISTRY,
       where: 'default',
     })
+  })
+})
+
+// The server endpoint follows the same precedence as the registry, and matters
+// more: get it wrong and an installed client cannot sign in at all. The default
+// is passed in because it differs between a packaged build and a dev run, so
+// these cases pin the resolution rather than the packaging decision.
+function serverFile(serverUrl: unknown): string {
+  return JSON.stringify({ serverUrl })
+}
+
+describe('resolveServerUrl', () => {
+  it('uses the fallback it is given when nothing is configured', () => {
+    expect(resolveServerUrl(undefined, undefined, DEFAULT_SERVER_URL)).toEqual({
+      url: DEFAULT_SERVER_URL,
+      where: 'default',
+    })
+    expect(resolveServerUrl(undefined, undefined, DEV_SERVER_URL).url).toBe(DEV_SERVER_URL)
+  })
+
+  it('lets a deployment point an installed client at its own server', () => {
+    expect(resolveServerUrl(undefined, serverFile('https://harness.internal.example/'), DEFAULT_SERVER_URL)).toEqual({
+      url: 'https://harness.internal.example',
+      where: 'file',
+    })
+  })
+
+  it('lets the environment variable outrank the file', () => {
+    expect(resolveServerUrl('http://localhost:8720', serverFile('https://harness.internal.example'), DEFAULT_SERVER_URL)).toEqual({
+      url: 'http://localhost:8720',
+      where: 'env',
+    })
+  })
+
+  it('keeps the fallback when the file holds something that is not a URL', () => {
+    const resolved = resolveServerUrl(undefined, serverFile('not a url'), DEFAULT_SERVER_URL)
+    expect(resolved.url).toBe(DEFAULT_SERVER_URL)
+    expect(resolved.warning).toContain(`${CONFIG_FILENAME}: serverUrl`)
+  })
+
+  it('does not read the registry key by mistake', () => {
+    // Both settings live in one file; picking up the wrong one would send
+    // account traffic to a package registry.
+    const resolved = resolveServerUrl(undefined, JSON.stringify({ pluginRegistry: 'https://registry.npmmirror.com' }), DEFAULT_SERVER_URL)
+    expect(resolved).toEqual({ url: DEFAULT_SERVER_URL, where: 'default' })
+  })
+
+  it('survives a file that is not valid JSON', () => {
+    const resolved = resolveServerUrl(undefined, '{ oops', DEFAULT_SERVER_URL)
+    expect(resolved.url).toBe(DEFAULT_SERVER_URL)
+    expect(resolved.warning).toContain('not valid JSON')
   })
 })

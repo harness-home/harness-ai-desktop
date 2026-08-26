@@ -12,7 +12,7 @@ import { installNodeSpawnShim } from './harness/node-spawn-shim'
 import { initFileLog, log, logFilePath } from './log'
 import { createBootWatchdog } from './boot-watchdog'
 import { maskSecrets } from './mask-secrets'
-import { pluginRegistry } from './runtime-config'
+import { pluginRegistry, serverUrl } from './runtime-config'
 import { currentStage, enterStage, setStageLogger, startupTimeline } from './startup-stage'
 import { createTray, updateTray } from './tray'
 import { answerInstall, disposeUpdater, initUpdater } from './updater'
@@ -294,10 +294,12 @@ if (!locked) {
     // client that never opened the market would otherwise never print it.
     pluginRegistry()
     auditPreviousRun(dshVersion())
-    // Deployment endpoint is still open (ledger #25); default to the local
-    // dev server until one exists.
     accountService = new DesktopAccountService({
-      serverUrl: process.env.HARNESS_SERVER_URL ?? 'http://localhost:8720',
+      // A packaged client talks to the hosted service; a development run talks
+      // to the server the developer started. Either is overridable per install
+      // through harness-ai.config.json, so a self-hosted deployment does not
+      // need its own build.
+      serverUrl: serverUrl(),
       storageFile: join(app.getPath('userData'), 'account.json'),
       appVersion: app.getVersion(),
       onChanged: () => updateTray(),

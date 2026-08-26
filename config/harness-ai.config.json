@@ -19,8 +19,16 @@
     "  satisfy the check.",
     "  The HARNESS_PLUGIN_REGISTRY environment variable overrides this value.",
     "",
+    "serverUrl",
+    "  The Harness AI service this client signs in to and syncs sessions with.",
+    "  Default: https://api.harnessai.io . A self-hosted deployment points this",
+    "  at its own server, which is why this file exists: running your own",
+    "  service should not require your own build of the client.",
+    "  The HARNESS_SERVER_URL environment variable overrides this value.",
+    "",
     "Note: installing an application update rewrites this file with the shipped",
     "defaults. Re-apply your changes after an update."
   ],
-  "pluginRegistry": "https://registry.npmjs.org/"
+  "pluginRegistry": "https://registry.npmjs.org/",
+  "serverUrl": "https://api.harnessai.io"
 }

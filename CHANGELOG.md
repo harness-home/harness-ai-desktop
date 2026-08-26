@@ -7,6 +7,22 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [0.1.10] — 2026-08-26
+
+### Changed
+
+- **The client talks to the hosted service by default.** Until now a packaged
+  installer defaulted to `http://localhost:8720`, which is a server nobody who
+  installs this has: every shipped client sat there unable to sign in. Packaged
+  builds now default to `https://api.harnessai.io`, and a development run still
+  defaults to the local server, so `pnpm dev` keeps talking to the one you just
+  started.
+- **`serverUrl` joins `harness-ai.config.json`.** It follows the same
+  precedence the plugin registry does — environment variable, then the config
+  file, then the built-in default — so a self-hosted deployment points its
+  clients at its own service by editing one line on an installed machine.
+  Running your own server does not require your own build of the client.
+
 ## [0.1.9] — 2026-08-25
 
 ### Changed
@@ -196,6 +212,7 @@ warn on first run; the release notes carry the SHA-256 to check against.
   build output — so two files had never been committed and a fresh clone could
   not typecheck.
 
+[0.1.10]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.10
 [0.1.9]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.9
 [0.1.8]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.8
 [0.1.7]: https://github.com/harness-home/harness-ai-desktop/releases/tag/v0.1.7

@@ -126,6 +126,7 @@ flowchart LR
 | 键 | 默认值 | 用途 |
 | --- | --- | --- |
 | `pluginRegistry` | `https://registry.npmjs.org/` | 插件市场解析和下载插件所用的 npm registry。公共 registry 慢或不可达时，改指向它的镜像即可，例如 `https://registry.npmmirror.com/`。 |
+| `serverUrl` | `https://api.harnessai.io` | 本客户端登录、同步托管会话所连的服务端。自托管部署改成自己的地址即可——**自己跑服务端不需要自己出一版客户端**。 |
 
 **指向镜像不会降低市场的门槛**：完整性复核会从当前配置的这个 registry 读取，也就是从 tarball 真正会被下载的地方读——镜像给出的字节与目录记录的不一致就直接拒绝，而不是照单全收。但它必须是公共 registry 的镜像：一个用同样的包名提供自家包的私有 registry 过不了这道校验。
 

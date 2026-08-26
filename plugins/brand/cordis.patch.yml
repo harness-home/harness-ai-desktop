@@ -1,0 +1,9 @@
+# Optional profile layer: one row mounting the Harness AI brand occupants and
+# theme on the dsh web client. This patch is what makes the npm package
+# installable in a plain dsh profile (`dsh plugin add`); inside
+# harness-ai-desktop the shell inserts the same row itself and the package is
+# blocklisted from our own catalog, so the market never double-mounts it.
+
+- insert:
+    - id: harness-ai-brand
+      name: '@harness-ai/desktop-brand'

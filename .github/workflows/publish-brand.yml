@@ -1,0 +1,64 @@
+# Tag -> npm. Pushing a `brand-v<version>` tag builds plugins/brand and
+# publishes it to npm with provenance, so the catalog's missing-provenance
+# risk flag never applies to our own plugin.
+#
+#   git tag brand-v0.1.0 && git push origin brand-v0.1.0
+#
+# The tag must match the version in plugins/brand/package.json — same gate as
+# release.yml, for the same reason. Requires the NPM_TOKEN repository secret
+# (an npm granular token with publish rights on @harness-ai).
+#
+# Actions are pinned to commit SHAs — see the note in ci.yml for how to update.
+name: Publish brand plugin
+
+on:
+  push:
+    tags: ['brand-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm --provenance attests the workflow identity over OIDC
+
+concurrency:
+  group: publish-brand-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the tag against the package version
+        shell: bash
+        run: |
+          version=$(node -p "require('./plugins/brand/package.json').version")
+          tag="${GITHUB_REF_NAME}"
+          echo "plugins/brand version=$version tag=$tag"
+          if [ "$tag" != "brand-v$version" ] && [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "::error::tag $tag does not match plugins/brand version $version"
+            exit 1
+          fi
+
+      - name: Build
+        run: pnpm --filter @harness-ai/desktop-brand build
+
+      - name: Publish
+        working-directory: plugins/brand
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

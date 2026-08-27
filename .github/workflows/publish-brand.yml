@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Build
-        run: pnpm --filter @harness-ai/desktop-brand build
+        run: pnpm --filter @harness-ai/harness-brand build
 
       - name: Publish
         working-directory: plugins/brand

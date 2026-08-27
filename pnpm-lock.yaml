@@ -228,9 +228,6 @@ importers:
       '@harness-ai/desktop-account-ui':
         specifier: workspace:*
         version: link:plugins/account-ui
-      '@harness-ai/desktop-brand':
-        specifier: workspace:*
-        version: link:plugins/brand
       '@harness-ai/desktop-directory-picker':
         specifier: workspace:*
         version: link:plugins/electron-directory-picker
@@ -240,6 +237,9 @@ importers:
       '@harness-ai/desktop-windows-pwsh-sandbox':
         specifier: workspace:*
         version: link:plugins/windows-pwsh-sandbox
+      '@harness-ai/harness-brand':
+        specifier: workspace:*
+        version: link:plugins/brand
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9(supports-color@7.2.0)

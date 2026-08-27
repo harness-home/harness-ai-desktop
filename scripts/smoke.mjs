@@ -52,10 +52,10 @@ if (endpoint === undefined) {
   if (!endpoint.body.includes('__DSH_BOOT__') && !endpoint.body.includes('DeepSeek')) {
     failures.push('served page does not look like the dsh web shell')
   }
-  if (!endpoint.body.includes('desktop-brand')) {
+  if (!endpoint.body.includes('harness-brand')) {
     failures.push('brand plugin is missing from the boot graph')
   }
-  const bundle = await fetch(`http://127.0.0.1:${String(endpoint.port)}/plugins/@harness-ai/desktop-brand/client.js`)
+  const bundle = await fetch(`http://127.0.0.1:${String(endpoint.port)}/plugins/@harness-ai/harness-brand/client.js`)
   if (!bundle.ok) failures.push(`brand client bundle fetch returned ${String(bundle.status)}`)
 }
 

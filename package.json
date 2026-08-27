@@ -61,7 +61,7 @@
     "@deepseek-ai/dsh-workflow": "catalog:dsh",
     "@harness-ai/contracts": "^0.1.0",
     "@harness-ai/desktop-account-ui": "workspace:*",
-    "@harness-ai/desktop-brand": "workspace:*",
+    "@harness-ai/harness-brand": "workspace:*",
     "@harness-ai/desktop-directory-picker": "workspace:*",
     "@harness-ai/desktop-market-ui": "workspace:*",
     "@harness-ai/desktop-windows-pwsh-sandbox": "workspace:*",

@@ -48,7 +48,7 @@ else {
   if (!endpoint.body.includes('__DSH_BOOT__') && !endpoint.body.includes('DeepSeek')) {
     failures.push('served page does not look like the dsh web shell')
   }
-  for (const plugin of ['desktop-brand', 'desktop-account-ui', 'desktop-market-ui']) {
+  for (const plugin of ['harness-brand', 'desktop-account-ui', 'desktop-market-ui']) {
     if (!endpoint.body.includes(plugin)) failures.push(`${plugin} missing from the boot graph`)
     const bundle = await fetch(`http://127.0.0.1:${String(endpoint.port)}/plugins/@harness-ai/${plugin}/client.js`)
     if (!bundle.ok) failures.push(`${plugin} bundle fetch returned ${String(bundle.status)}`)

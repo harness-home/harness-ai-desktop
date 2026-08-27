@@ -62,7 +62,7 @@ const PROFILE_ROOT_CONFIG = `# dsh profile root - an empty entry list managed by
 const APP_ROWS = [
   {
     insert: [
-      { id: 'harness-ai-brand', name: '@harness-ai/desktop-brand' },
+      { id: 'harness-ai-brand', name: '@harness-ai/harness-brand' },
       { id: 'harness-ai-account-ui', name: '@harness-ai/desktop-account-ui' },
       { id: 'harness-ai-market-ui', name: '@harness-ai/desktop-market-ui' },
     ],

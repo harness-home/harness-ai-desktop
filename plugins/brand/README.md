@@ -1,11 +1,11 @@
-# @harness-ai/desktop-brand
+# @harness-ai/harness-brand
 
 Harness AI brand occupants for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) web client's brand slots, plus the Harness theme (teal on a neutral canvas, light and dark).
 
 This is the brand plugin that ships inside [harness-ai-desktop](https://github.com/harness-home/harness-ai-desktop). Published standalone so any plain dsh profile can use the theme:
 
 ```bash
-dsh plugin add @harness-ai/desktop-brand
+dsh plugin add @harness-ai/harness-brand
 ```
 
 The package is a profile bundle layer (`dsh.bundle.patch`) with an empty host row and a browser bundle in dsh's lazy-CJS client format. It has no runtime dependencies and runs nothing at install time.

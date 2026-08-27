@@ -1,7 +1,7 @@
 {
   "name": "harness-ai-desktop",
   "productName": "Harness AI",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "description": "Harness AI desktop workbench: Electron shell hosting the dsh runtime in-process",
   "type": "module",

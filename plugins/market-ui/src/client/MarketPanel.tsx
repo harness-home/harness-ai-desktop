@@ -59,14 +59,24 @@ async function fetchQuarantined(): Promise<QuarantineEntry[]> {
   }
 }
 
-/** One listing by id, for an install offer whose row is not on the current page. */
-async function fetchListing(id: string): Promise<MarketListing | null> {
+/**
+ * One listing by id, for an install offer whose row is not on the current page.
+ * Failure modes stay distinct: a signed-out 401 is not "the catalog does not
+ * have this", and telling the user the wrong one sends them chasing the wrong
+ * fix.
+ */
+async function fetchListing(id: string): Promise<OfferState> {
   try {
     const response = await fetch(`/desktop/market/listing?id=${encodeURIComponent(id)}`)
-    if (!response.ok) return null
-    return ((await response.json()) as MarketListingResponse).listing
+    if (response.ok) {
+      const listing = ((await response.json()) as MarketListingResponse).listing
+      return listing === null ? { status: 'missing' } : { status: 'ready', listing }
+    }
+    if (response.status === 401 || response.status === 403) return { status: 'unauthenticated' }
+    if (response.status === 404) return { status: 'missing' }
+    return { status: 'unavailable' }
   } catch {
-    return null
+    return { status: 'unavailable' }
   }
 }
 
@@ -279,7 +289,12 @@ function ListingCard(props: {
   )
 }
 
-type OfferState = { status: 'loading' } | { status: 'missing' } | { status: 'ready'; listing: MarketListing }
+type OfferState =
+  | { status: 'loading' }
+  | { status: 'missing' }
+  | { status: 'unauthenticated' }
+  | { status: 'unavailable' }
+  | { status: 'ready'; listing: MarketListing }
 
 /**
  * Confirmation banner for an install a deep link asked for. The link named only
@@ -295,7 +310,9 @@ function InstallOffer(props: {
 }) {
   const { offer, busy, t, onConfirm, onDismiss } = props
   const listing = offer.status === 'ready' ? offer.listing : undefined
-  const blocked = listing !== undefined && (!listing.installable || listing.packageName === null || listing.preset)
+  // Preset rows ship inside the app: not an error, just nothing to install.
+  const preset = listing !== undefined && listing.preset
+  const blocked = listing !== undefined && (!listing.installable || listing.packageName === null)
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary/10 px-6 py-3">
@@ -309,9 +326,15 @@ function InstallOffer(props: {
             ? t('offer.loading')
             : offer.status === 'missing'
               ? t('offer.missing')
-              : blocked
-                ? t('offer.notInstallable')
-                : t('offer.body')}
+              : offer.status === 'unauthenticated'
+                ? t('offer.unauthenticated')
+                : offer.status === 'unavailable'
+                  ? t('offer.unavailable')
+                  : preset
+                    ? t('offer.preset')
+                    : blocked
+                      ? t('offer.notInstallable')
+                      : t('offer.body')}
         </p>
         {listing === undefined ? null : (
           <p className="mt-1 truncate text-sm text-foreground">
@@ -323,14 +346,16 @@ function InstallOffer(props: {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <Button variant="outline" size="sm" onClick={onDismiss}>{t('offer.dismiss')}</Button>
-        <Button
-          size="sm"
-          disabled={busy || listing === undefined || blocked}
-          onClick={() => { if (listing !== undefined) onConfirm(listing) }}
-        >
-          {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-          {t('offer.confirm')}
-        </Button>
+        {preset ? null : (
+          <Button
+            size="sm"
+            disabled={busy || listing === undefined || blocked}
+            onClick={() => { if (listing !== undefined) onConfirm(listing) }}
+          >
+            {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {t('offer.confirm')}
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -422,9 +447,9 @@ export function MarketPanel(props: { t: Translate; onClose: () => void }) {
     }
     let cancelled = false
     setOffer({ status: 'loading' })
-    void fetchListing(offeredId).then((listing) => {
+    void fetchListing(offeredId).then((next) => {
       if (cancelled) return
-      setOffer(listing === null ? { status: 'missing' } : { status: 'ready', listing })
+      setOffer(next)
     })
     return () => { cancelled = true }
   }, [offeredId])

@@ -7,6 +7,24 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [0.1.11] — 2026-08-27
+
+### Fixed
+
+- **The website install-request banner no longer misreports every failure as
+  "not in the catalog".** A signed-out lookup now says to sign in first, an
+  unreachable catalog says so, and a plugin that ships inside the app says
+  there is nothing to install — with no Install button — instead of a
+  misleading missing-from-catalog message (or an install that would only be
+  refused as `preset_bundled` after the click).
+
+### Changed
+
+- **The bundled brand plugin is published to npm as
+  `@harness-ai/harness-brand`** (renamed from `@harness-ai/desktop-brand`), so
+  plain dsh profiles can `dsh plugin add` the Harness theme. Inside the client
+  nothing changes — the shell mounts it itself, as before.
+
 ## [0.1.10] — 2026-08-26
 
 ### Changed

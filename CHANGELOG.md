@@ -7,6 +7,22 @@ with the caveat that this is a developer preview tracking a runtime that states
 breaking changes are expected, so treat `0.x` minor bumps as potentially
 breaking and upgrade the clients and the service together.
 
+## [0.1.12] — 2026-08-28
+
+### Fixed
+
+- **Preset roots configured in a profile are no longer dropped.** The launcher
+  used to replace the roster's `roots` with the shipped root alone, so any root
+  a profile's `cordis.patch.yml` declared vanished with no diagnostic. The
+  shipped root is now prepended instead: it still mounts first and still wins a
+  duplicate preset id, while configured roots stay live. A `roots` value the
+  launcher cannot statically rewrite now fails loudly rather than being
+  silently discarded.
+- **The sidebar's Account and Plugin Market entries stack more robustly.** The
+  rule that lays them out vertically now also matches their direct parent, so
+  one less shape of the embedded UI's markup can squeeze both entries back into
+  the narrow rail and make them unclickable.
+
 ## [0.1.11] — 2026-08-27
 
 ### Fixed

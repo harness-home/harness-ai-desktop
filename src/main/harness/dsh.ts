@@ -29,6 +29,7 @@ import { enterStage } from '../startup-stage'
 import { BootProfiler, formatBootProfile } from './boot-profile'
 import { installInstallationRequireFallback, installProfileFallbackResolver } from './module-resolution'
 import { directoryPickerOverlays } from './picker-overlay'
+import { presetRootOverlays, PRESET_ROW_ID } from './preset-overlay'
 import { recoverIncompleteInstall } from './install-journal'
 import { auditProfileBundles, profileOwnedBundles, quarantineBundles } from './profile-plugins'
 import { registerAccountRoutes } from './account-routes'
@@ -73,6 +74,8 @@ const APP_ROWS = [
  * App-owned overlays derived from the composed tree:
  * 1. Shipped agent presets — the roster ships inside the `@deepseek-ai/dsh`
  *    package and only the app can resolve it (mirrors the upstream launcher).
+ *    The shipped root is prepended to whatever the composition configured, so
+ *    a profile's own preset roots survive; see preset-overlay.ts.
  * 2. Windows pwsh sandbox swap — the upstream ACL sandbox launches its runner
  *    as `process.execPath <runner.js>`, which inside Electron starts a second
  *    app instance; our adapter row trampolines that launch (see
@@ -88,16 +91,10 @@ function composedOverlays(
       .map(row => [row.id as string, row]),
   )
   const overlays: object[] = []
-  const presets = rows.get('agent-presets')
+  const presets = rows.get(PRESET_ROW_ID)
   if (presets !== undefined) {
     const cliDir = dirname(createRequire(installAnchor).resolve('@deepseek-ai/dsh/package.json'))
-    overlays.push({
-      id: 'agent-presets',
-      config: {
-        ...(presets.config ?? {}) as Record<string, unknown>,
-        roots: [{ path: join(cliDir, 'config', 'agent-presets') + sep, trust: 'system' }],
-      },
-    })
+    overlays.push(...presetRootOverlays(presets, join(cliDir, 'config', 'agent-presets') + sep))
   }
   const picker = rows.get('directory-picker')
   if (picker !== undefined) overlays.push(...directoryPickerOverlays(picker.name as string))

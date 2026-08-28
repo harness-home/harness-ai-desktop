@@ -1,7 +1,7 @@
 // Harness AI occupants for the web client's brand slots, plus the Harness
 // theme pair. The official brand occupants sit at priority 0 and the lowest
 // priority renders, so ours shadow them from -1.
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'

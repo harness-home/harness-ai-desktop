@@ -136,6 +136,14 @@ pnpm test             # vitest（纯逻辑单测：deep-link 解析、profile �
 - **registry 换镜像不降低供应链门槛**：packument 复核必须和 tarball 走同一个 registry（`createPackumentFetcher(registry)`），镜像给的字节与目录记录不符即拒绝。**改这块时别把复核写回硬编码 npmjs**——那样复核的就不是将要下载的那份了。profile 的 `.npmrc` 每次安装都重写 registry 行（配置改了之后旧行会盖过命令行参数）。
 - **已知取舍**：更新会用随包默认值覆盖这个文件（`extraFiles` 的固有行为），README 两版都写明了。想让它跨更新存活，得换成 userData 副本或安装期保留，届时再定。
 
+## 上游已经踩平的坑（2026-08-28 上游监控，不是我方事故）
+
+这三条都是「我们还没写到那一步，但一写就会踩」的约束。来源是 dsh 上游 0.1.2-alpha.1 与桌面壳参照仓 <https://github.com/anywhere-labs/deepseek-harness-desktop>，记在这里免得下一个会话重新发明一遍。
+
+- **不得声明并 append 自定义会话事件。** 上游把会话事件词表改成 fail-closed：每个事件类型都是 required-on-read，读到不认识的类型直接 `SessionFormatUnsupportedError` **拒绝重建整条会话**，且旧的 `ignorable` 逃生口已被删除。原文明确：仓库外部的 `SessionEventMap` 成员可以在活进程里跑并落盘，但第一方读取器**下次加载时拒绝**。也就是说给插件加一个自定义会话事件 = 那条会话下次启动直接加载失败。需要额外状态就开独立存储域，不要污染 session log。
+- **Windows 窗口材质只考虑 Mica，不碰 Acrylic。** 参照仓把两种 Windows Acrylic 实现都试过之后整块删除，理由是「两种实现都会破坏原生窗口行为」，默认值退回 `off`。我们当前是普通不透明窗口，本来就在正确位置上。真要做半透明只用 `backgroundMaterial: 'mica'`（需 NT build ≥ 22621，低于此**必须 fail-closed 回 `off`**），不要引入 `transparent: true` 那条 legacy 路线。
+- **给侧栏/面板加文件拖放前先读这条。** dsh 的 attachment 插件在 `document` 上监听文件拖拽，并把一个**全聊天区遮罩** portal 到 `document.body`；侧栏里任何自己的拖放目标都会和它抢 `dropEffect`、遮罩互相盖。参照仓的解法是三件套：`stopImmediatePropagation()` 抢下事件；悬停期判目录用 `webkitGetAsEntry()`，拿不到时退回「目录项没有 MIME type」（Chromium 可能到 drop 才给出 File/entry）；以及往上游打补丁加 `data-*` 锚点，让遮罩 portal 到会话区而不是 `body`。
+
 ## 本仓库红线摘要
 
 - dsh 永远 loopback，绝不对网络暴露；远程能力一律经 harness-ai-server 中转（根红线 #4）。

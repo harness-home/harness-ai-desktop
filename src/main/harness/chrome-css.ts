@@ -11,7 +11,16 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 export const SIDEBAR_ACTION_CLASS = 'harness-sidebar-action'
 
 const CHROME_CSS = `
-/* Stack the shell's sidebar footer actions instead of packing them in a row. */
+/* Stack the shell's sidebar footer actions instead of packing them in a row.
+   Both selectors are anchored on our OWN class and reach at most one level up
+   from it: the direct parent, and the grandparent that is today's flex row.
+   Do NOT add a deeper level — a third \`> *\` can reach the sidebar's own
+   layout column, and turning THAT into a stretched column distorts the whole
+   rail. The trade-off is deliberate: if upstream adds a wrapper the rule stops
+   matching and the two entries silently squeeze back into the 56px rail, which
+   is the exact defect this block exists to fix. That is why an embedded-UI
+   upgrade must re-check both entries by hand (see docs/acceptance.md). */
+div:has(> .${SIDEBAR_ACTION_CLASS}),
 div:has(> * > .${SIDEBAR_ACTION_CLASS}) {
   flex-direction: column !important;
   align-items: stretch !important;
